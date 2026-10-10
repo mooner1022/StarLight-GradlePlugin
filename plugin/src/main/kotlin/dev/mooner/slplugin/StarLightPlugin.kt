@@ -1,29 +1,27 @@
 package dev.mooner.slplugin
 
+import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.Task
-import org.gradle.api.plugins.ExtensionAware
 
 class StarLightPlugin : Plugin<Project> {
-    override fun apply(target: Project) {
-        val extension = target.extensions.create("starlightPlugin", StarLightPluginExtension::class.java)
-        val deviceExtension = (target.extensions.getByName("starlightPlugin") as ExtensionAware)
-            .extensions.create("device", DeviceExtension::class.java)
 
-        val buildTask = target.tasks.register("buildPlugin", PluginBuildTask::class.java)
-        val pushTask  = target.tasks.register("buildAndPushPlugin", PluginPushTask::class.java)
+    override fun apply(project: Project) {
+        val extension = project.extensions.create("starlight", StarlightExtension::class.java)
 
-        target.afterEvaluate {
-            buildTask.configure { target ->
-                target.outputDirectory.set(extension.outputDirectory)
-            }
-            pushTask.configure { target ->
-                target.outputDirectory.set(extension.outputDirectory)
-                target.host.set(deviceExtension.host)
-                target.port.set(deviceExtension.port)
-                target.password.set(deviceExtension.password)
-            }
+        project.pluginManager.withPlugin(ANDROID_APPLICATION) {
+            AndroidIntegration.configure(project, extension)
         }
+        project.afterEvaluate {
+            if (!project.pluginManager.hasPlugin(ANDROID_APPLICATION))
+                throw GradleException(
+                    "io.github.mooner1022.slplugin requires the Android application plugin. " +
+                        "Apply '$ANDROID_APPLICATION' to ${project.path} as well."
+                )
+        }
+    }
+
+    private companion object {
+        const val ANDROID_APPLICATION = "com.android.application"
     }
 }

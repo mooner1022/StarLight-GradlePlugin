@@ -328,3 +328,5 @@ hs_err_pid*
 # Signing / publishing secrets — keep them in ~/.gradle/gradle.properties or CI env vars
 *.gpg
 plugin/gradle.properties
+# StarLight SDK binaries for the sample: build them from the StarLight repository (see README)
+testApp/libs/*.aar
