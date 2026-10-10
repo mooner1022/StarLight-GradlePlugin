@@ -14,7 +14,7 @@ become build errors instead.
 
 ### Requirements
 - Android Gradle Plugin 8.0 or newer, applied as `com.android.application`
-  (tested with AGP 8.0.2 on Gradle 8.2 and AGP 9.4.1 on Gradle 9.8)
+  (tested with AGP 8.0.2 on Gradle 8.0.2 and AGP 9.4.1 on Gradle 9.8)
 - JDK 17 or newer
 
 ### Setup
@@ -64,7 +64,7 @@ starlight {
 
     deploy {
         device = "192.168.0.10:5555"         // adb serial or ip:port; optional with a single device
-        restartApp = true                    // StarLight has no hot reload
+        // restartApp = true                 // force-stops StarLight after deploying (it has no hot reload)
     }
 }
 ```

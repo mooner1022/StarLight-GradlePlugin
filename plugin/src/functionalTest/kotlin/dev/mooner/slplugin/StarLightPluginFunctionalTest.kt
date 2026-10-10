@@ -14,15 +14,15 @@ class StarLightPluginFunctionalTest {
 
     private val manifestBlock = """
         sdk {
-            pluginCore = file("libs/plugincore-stub.jar")
+            pluginCore.set(file("libs/plugincore-stub.jar"))
         }
         manifest {
-            id = "fixture"
-            name = "Fixture"
-            mainClass = "dev.test.fixture.FixturePlugin"
-            apiVersion = "0.3.0"
+            id.set("fixture")
+            name.set("Fixture")
+            mainClass.set("dev.test.fixture.FixturePlugin")
+            apiVersion.set("0.3.0")
             authors.add("tester")
-            description = "Functional test fixture"
+            description.set("Functional test fixture")
             dependency("other", optional = true)
         }
     """.trimIndent()
@@ -63,7 +63,7 @@ class StarLightPluginFunctionalTest {
     fun `rejects a hand-written manifest the host would misread`(target: AgpTarget) {
         Fixture.assumeAndroidSdk(target)
         val fixture = Fixture("handwritten-${target.agp}", target)
-        fixture.starlightBlock = """sdk { pluginCore = file("libs/plugincore-stub.jar") }"""
+        fixture.starlightBlock = """sdk { pluginCore.set(file("libs/plugincore-stub.jar")) }"""
         fixture.file(
             "src/main/assets/starlight.json",
             """
@@ -108,7 +108,7 @@ class StarLightPluginFunctionalTest {
         val bundled = fixture.runner("assembleDebugSlp").build()
         assertTrue("bundles libraries the StarLight host already provides: kotlin-stdlib" in bundled.output, bundled.output)
 
-        fixture.starlightBlock = manifestBlock.replace("sdk {", "sdk {\n    excludeHostKotlinLibraries = true")
+        fixture.starlightBlock = manifestBlock.replace("sdk {", "sdk {\n    excludeHostKotlinLibraries.set(true)")
         val excluded = fixture.runner("assembleDebugSlp").build()
         assertFalse("already provides" in excluded.output, excluded.output)
         val classes = Fixture.zipEntries(fixture.slp("debug/fixture-debug.slp")).getValue("classes.dex")
@@ -125,6 +125,20 @@ class StarLightPluginFunctionalTest {
         val result = fixture.runner("assembleDebugSlp").buildAndFail()
         assertEquals(TaskOutcome.FAILED, result.task(":verifyStarlightSdk")?.outcome, result.output)
         assertTrue("starlight.sdk.pluginCore" in result.output, result.output)
+    }
+
+    @Test
+    fun `deploy reports an unknown device without touching any device`() {
+        val target = AgpTarget.LATEST
+        Fixture.assumeAndroidSdk(target)
+        val fixture = Fixture("deploy-unknown-device", target)
+        fixture.starlightBlock = manifestBlock
+
+        // adb -s with a serial no device can have, so this never pushes to a real device.
+        val result = fixture.runner("deployDebugSlp", "-Pstarlight.device=slplugin-no-such-device").buildAndFail()
+        assertEquals(TaskOutcome.FAILED, result.task(":deployDebugSlp")?.outcome, result.output)
+        assertTrue("slplugin-no-such-device" in result.output, result.output)
+        assertTrue("Connect a device with USB debugging" in result.output, result.output)
     }
 
     @Test

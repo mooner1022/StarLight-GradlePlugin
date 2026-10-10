@@ -31,6 +31,7 @@ starlight {
     deploy {
         // Or pass -Pstarlight.device=<serial or ip:port>, or set STARLIGHT_DEVICE.
         // device = "192.168.0.10:5555"
-        restartApp = true
+        // Restarting force-stops StarLight on the device; opt in per run with -Pstarlight.restartApp=true.
+        // restartApp = true
     }
 }

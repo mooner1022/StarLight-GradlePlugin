@@ -18,7 +18,7 @@ data class AgpTarget(
     override fun toString() = "AGP $agp / Gradle $gradle"
 
     companion object {
-        val MIN = AgpTarget(System.getProperty("slplugin.agp.min"), "8.2", 34, "34.0.0")
+        val MIN = AgpTarget(System.getProperty("slplugin.agp.min"), "8.0.2", 34, "34.0.0")
         val LATEST = AgpTarget(System.getProperty("slplugin.agp.latest"), "9.8.0", 36, "36.0.0")
 
         @JvmStatic
