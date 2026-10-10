@@ -103,7 +103,7 @@ class StarLightPluginFunctionalTest {
         Fixture.assumeAndroidSdk(target)
         val fixture = Fixture("kotlin-runtime", target)
         fixture.starlightBlock = manifestBlock
-        fixture.dependenciesBlock = """implementation("org.jetbrains.kotlin:kotlin-stdlib:2.0.21")"""
+        fixture.dependenciesBlock = """implementation("org.jetbrains.kotlin:kotlin-stdlib:${System.getProperty("slplugin.kotlin")}")"""
 
         val bundled = fixture.runner("assembleDebugSlp").build()
         assertTrue("bundles libraries the StarLight host already provides: kotlin-stdlib" in bundled.output, bundled.output)

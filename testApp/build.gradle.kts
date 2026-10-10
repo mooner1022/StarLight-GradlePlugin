@@ -5,11 +5,17 @@ plugins {
 
 android {
     namespace = "dev.mooner.slplugin.sample"
-    compileSdk = 36
+    // SDK levels and bytecode target follow the StarLight app. (Build tools are left to AGP: 9.x requires 36+.)
+    compileSdk = libs.versions.compileSdk.get().toInt()
     defaultConfig {
-        minSdk = 26
+        minSdk = libs.versions.minSdk.get().toInt()
+        targetSdk = libs.versions.targetSdk.get().toInt()
         // Used as the plugin version unless starlight.manifest.version is set.
         versionName = "1.0.0"
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
 }
 
@@ -24,7 +30,7 @@ starlight {
         id = "sample"
         name = "Sample Plugin"
         mainClass = "dev.mooner.slplugin.sample.SamplePlugin"
-        apiVersion = "0.3.0"
+        apiVersion = "0.3.2"
         authors.add("mooner")
         description = "Sample plugin built with io.github.mooner1022.slplugin"
     }

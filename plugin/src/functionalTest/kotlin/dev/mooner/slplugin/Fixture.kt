@@ -21,8 +21,16 @@ data class AgpTarget(
         val MIN = AgpTarget(System.getProperty("slplugin.agp.min"), "8.0.2", 34, "34.0.0")
         val LATEST = AgpTarget(System.getProperty("slplugin.agp.latest"), "9.8.0", 36, "36.0.0")
 
+        /** The toolchain of the StarLight app itself. */
+        val HOST = AgpTarget(
+            System.getProperty("slplugin.agp.host"),
+            "8.11.1",
+            System.getProperty("slplugin.host.compileSdk").toInt(),
+            System.getProperty("slplugin.host.buildTools"),
+        )
+
         @JvmStatic
-        fun all() = listOf(MIN, LATEST)
+        fun all() = listOf(MIN, HOST, LATEST)
     }
 }
 

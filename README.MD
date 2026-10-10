@@ -14,8 +14,11 @@ become build errors instead.
 
 ### Requirements
 - Android Gradle Plugin 8.0 or newer, applied as `com.android.application`
-  (tested with AGP 8.0.2 on Gradle 8.0.2 and AGP 9.4.1 on Gradle 9.8)
+  (tested with AGP 8.0.2 on Gradle 8.0.2, AGP 8.9.3 on Gradle 8.11.1 like the StarLight app, and AGP 9.4.1 on Gradle 9.8)
 - JDK 17 or newer
+- Kotlin plugins: the Kotlin version of the StarLight app (currently 2.4.20), or at least the previous minor version.
+  PluginCore is compiled with it, and older Kotlin compilers cannot read its classes. With AGP 9's built-in Kotlin,
+  pin the version by adding `id("org.jetbrains.kotlin.android") version "2.4.20" apply false` to the root build script.
 
 ### Setup
 Kotlin DSL:
