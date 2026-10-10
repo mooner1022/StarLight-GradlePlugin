@@ -14,15 +14,15 @@ class StarLightPluginFunctionalTest {
 
     private val manifestBlock = """
         sdk {
-            pluginCore.set(file("libs/plugincore-stub.jar"))
+            pluginCore = file("libs/plugincore-stub.jar")
         }
         manifest {
-            id.set("fixture")
-            name.set("Fixture")
-            mainClass.set("dev.test.fixture.FixturePlugin")
-            apiVersion.set("0.3.0")
+            id = "fixture"
+            name = "Fixture"
+            mainClass = "dev.test.fixture.FixturePlugin"
+            apiVersion = "0.3.0"
             authors.add("tester")
-            description.set("Functional test fixture")
+            description = "Functional test fixture"
             dependency("other", optional = true)
         }
     """.trimIndent()
@@ -63,7 +63,7 @@ class StarLightPluginFunctionalTest {
     fun `rejects a hand-written manifest the host would misread`(target: AgpTarget) {
         Fixture.assumeAndroidSdk(target)
         val fixture = Fixture("handwritten-${target.agp}", target)
-        fixture.starlightBlock = """sdk { pluginCore.set(file("libs/plugincore-stub.jar")) }"""
+        fixture.starlightBlock = """sdk { pluginCore = file("libs/plugincore-stub.jar") }"""
         fixture.file(
             "src/main/assets/starlight.json",
             """
@@ -108,7 +108,7 @@ class StarLightPluginFunctionalTest {
         val bundled = fixture.runner("assembleDebugSlp").build()
         assertTrue("bundles libraries the StarLight host already provides: kotlin-stdlib" in bundled.output, bundled.output)
 
-        fixture.starlightBlock = manifestBlock.replace("sdk {", "sdk {\n    excludeHostKotlinLibraries.set(true)")
+        fixture.starlightBlock = manifestBlock.replace("sdk {", "sdk {\n    excludeHostKotlinLibraries = true")
         val excluded = fixture.runner("assembleDebugSlp").build()
         assertFalse("already provides" in excluded.output, excluded.output)
         val classes = Fixture.zipEntries(fixture.slp("debug/fixture-debug.slp")).getValue("classes.dex")

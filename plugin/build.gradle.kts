@@ -25,14 +25,13 @@ gradlePlugin {
 
 kotlin {
     jvmToolchain(17)
-    // The plugin runs inside the consumer's Gradle, with its embedded Kotlin compiler and stdlib, so keep the
-    // language level low. Gradle < 8.11 cannot read classes compiled at level 2.2 (functional tests on Gradle 8.0.2),
-    // and many StarLight plugins still use Gradle 8.0-8.5. 2.0 is deprecated but still supported by Kotlin 2.4.
-    coreLibrariesVersion = "2.0.21"
+    // The plugin runs inside the consumer's Gradle, on its embedded Kotlin compiler and stdlib. The minimum
+    // supported Gradle is 8.11 (the StarLight app's), which reads classes compiled at level 2.2; Gradle 8.0-8.5
+    // cannot. Its stdlib is 2.0.21, so avoid stdlib APIs newer than that: the functional tests run on Gradle 8.11.1.
+    coreLibrariesVersion = "2.2.21"
     compilerOptions {
-        apiVersion = KotlinVersion.KOTLIN_2_0
-        languageVersion = KotlinVersion.KOTLIN_2_0
-        freeCompilerArgs.add("-Xsuppress-version-warnings")
+        apiVersion = KotlinVersion.KOTLIN_2_2
+        languageVersion = KotlinVersion.KOTLIN_2_2
     }
 }
 

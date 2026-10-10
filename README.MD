@@ -13,8 +13,9 @@ become build errors instead.
 - Pushes the plugin with adb (USB or wireless debugging), restarts StarLight and streams its logcat
 
 ### Requirements
+- Gradle 8.11 or newer (the StarLight app uses 8.11.1)
 - Android Gradle Plugin 8.0 or newer, applied as `com.android.application`
-  (tested with AGP 8.0.2 on Gradle 8.0.2, AGP 8.9.3 on Gradle 8.11.1 like the StarLight app, and AGP 9.4.1 on Gradle 9.8)
+  (tested with AGP 8.0.2 and 8.9.3 on Gradle 8.11.1, and AGP 9.4.1 on Gradle 9.8)
 - JDK 17 or newer
 - Kotlin plugins: the Kotlin version of the StarLight app (currently 2.4.20), or at least the previous minor version.
   PluginCore is compiled with it, and older Kotlin compilers cannot read its classes. With AGP 9's built-in Kotlin,
@@ -71,7 +72,6 @@ starlight {
     }
 }
 ```
-With Gradle older than 8.2, use `.set(...)` instead of `=` (for example `id.set("my_plugin")`).
 
 ### Tasks
 | Task | Description |
