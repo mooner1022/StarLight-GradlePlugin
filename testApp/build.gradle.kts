@@ -1,47 +1,36 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.slplugin)
 }
 
 android {
-    namespace = "org.sample.app"
-    compileSdk = 33
+    namespace = "dev.mooner.slplugin.sample"
+    compileSdk = 36
     defaultConfig {
-        applicationId = "org.sample.app"
         minSdk = 26
-        targetSdk = 33
-        versionCode = 1
+        // Used as the plugin version unless starlight.manifest.version is set.
         versionName = "1.0.0"
     }
-    buildFeatures {
-        compose = true
-    }
-    composeOptions {
-        kotlinCompilerExtensionVersion = libs.versions.compose.compiler.get()
-    }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
 }
 
-kotlin {
-    jvmToolchain(11)
-}
-
-starlightPlugin {
-    //outputDirectory.set(File("E:\\IdeaProjects\\android-gradle-plugin-template\\sample\\build\\outputs\\sl2"))
-    device {
-        host = "192.168.219.164"
-        port = 9010
-        password = "foobar"
+starlight {
+    sdk {
+        // Build these from the StarLight repository: ./gradlew :PluginCore:assembleRelease :ConfigDSL:assembleRelease
+        pluginCore = file("libs/PluginCore-release.aar")
+        configDsl = file("libs/ConfigDSL-release.aar")
+        excludeHostKotlinLibraries = true
     }
-}
-
-dependencies {
-    implementation(dependencies.platform(libs.compose.bom))
-    implementation(libs.androidx.appcompat)
-    implementation(libs.androidx.lifecycle)
-    implementation(libs.bundles.compose)
+    manifest {
+        id = "sample"
+        name = "Sample Plugin"
+        mainClass = "dev.mooner.slplugin.sample.SamplePlugin"
+        apiVersion = "0.3.0"
+        authors.add("mooner")
+        description = "Sample plugin built with io.github.mooner1022.slplugin"
+    }
+    deploy {
+        // Or pass -Pstarlight.device=<serial or ip:port>, or set STARLIGHT_DEVICE.
+        // device = "192.168.0.10:5555"
+        restartApp = true
+    }
 }
