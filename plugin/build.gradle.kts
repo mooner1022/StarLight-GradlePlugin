@@ -8,7 +8,7 @@ group = "io.github.mooner1022.slplugin"
 version = libs.versions.slplugin.get()
 
 gradlePlugin {
-    website.set("https://starlight.mooner.dev/")
+    website.set("https://github.com/mooner1022/StarLight-GradlePlugin")
     vcsUrl.set("https://github.com/mooner1022/StarLight-GradlePlugin")
     plugins {
         create("StarLightPlugin") {

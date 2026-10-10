@@ -33,20 +33,22 @@ abstract class PluginBuildTask : DefaultTask() {
                 dir.mkdirs()
         }
         logger.lifecycle("Checking output directory: $dir")
+
+        checkBuildOutput()
     }
 
-    @TaskAction
-    fun checkBuildOutput() {
+    private fun checkBuildOutput() {
         val dir = getOutputDir("apk").resolve("debug")
         logger.lifecycle("Checking build result directory: $dir")
         if (!dir.exists()) {
             val msg = "Unable to locate apk build output directory: $dir"
             throw FileNotFoundException(msg)
         }
+
+        renameFile()
     }
 
-    @TaskAction
-    fun renameFile() {
+    private fun renameFile() {
         val sourceDir = getOutputDir("apk").resolve("debug")
 
         val outputDir = (outputDirectory.orNull?.asFile ?: getOutputDir("starlight"))
@@ -61,9 +63,10 @@ abstract class PluginBuildTask : DefaultTask() {
                     throw FileNotFoundException("Unable to locate output apk from directory: ${file?.parent}")
                 file
             }
+        logger.lifecycle("Pushing plugin file to: ${outputFile.path}")
 
         sourceFile.copyTo(outputFile)
-        sourceFile.delete()
+        //sourceFile.delete()
     }
 
     private fun getOutputDir(dir: String): File =

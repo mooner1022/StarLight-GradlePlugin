@@ -31,9 +31,9 @@ kotlin {
 }
 
 starlightPlugin {
-    outputDirectory.set(File("E:\\IdeaProjects\\android-gradle-plugin-template\\sample\\build\\outputs\\sl2"))
+    //outputDirectory.set(File("E:\\IdeaProjects\\android-gradle-plugin-template\\sample\\build\\outputs\\sl2"))
     device {
-        address = "192.168.219.164"
+        host = "192.168.219.164"
         port = 9010
         password = "foobar"
     }

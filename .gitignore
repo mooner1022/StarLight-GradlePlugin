@@ -323,3 +323,8 @@ hs_err_pid*
 !/gradle/wrapper/gradle-wrapper.jar
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,android,windows,androidstudio,intellij
+
+### StarLight-GradlePlugin ###
+# Signing / publishing secrets — keep them in ~/.gradle/gradle.properties or CI env vars
+*.gpg
+plugin/gradle.properties
