@@ -9,10 +9,11 @@ internal data class StarlightVersion(
     val minor: Int,
     val patch: Int,
     val build: String? = null,
-) {
-    /** The host only loads a plugin whose api_version has the same major and minor as its PluginCore. */
-    fun isCompatibleWith(other: StarlightVersion): Boolean =
-        major == other.major && minor == other.minor
+) : Comparable<StarlightVersion> {
+
+    /** Like the host, ignores [build]. */
+    override fun compareTo(other: StarlightVersion): Int =
+        compareValuesBy(this, other, StarlightVersion::major, StarlightVersion::minor, StarlightVersion::patch)
 
     override fun toString(): String =
         listOfNotNull(major, minor, patch, build).joinToString(".")

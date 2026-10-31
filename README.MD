@@ -13,7 +13,7 @@ become build errors instead.
 - Pushes the plugin with adb (USB or wireless debugging), restarts StarLight and streams its logcat
 
 ### Requirements
-- Gradle 8.11 or newer (the StarLight app uses 8.11.1)
+- Gradle 8.11 or newer
 - Android Gradle Plugin 8.0 or newer, applied as `com.android.application`
   (tested with AGP 8.0.2 and 8.9.3 on Gradle 8.11.1, and AGP 9.4.1 on Gradle 9.8)
 - JDK 17 or newer
@@ -26,14 +26,14 @@ Kotlin DSL:
 ```kotlin
 plugins {
     id("com.android.application")
-    id("io.github.mooner1022.slplugin") version "0.2.0"
+    id("io.github.mooner1022.slplugin") version "0.3.0"
 }
 ```
 Groovy DSL:
 ```groovy
 plugins {
     id 'com.android.application'
-    id 'io.github.mooner1022.slplugin' version '0.2.0'
+    id 'io.github.mooner1022.slplugin' version '0.3.0'
 }
 ```
 
@@ -55,9 +55,10 @@ starlight {
         id = "my_plugin"
         name = "My Plugin"
         mainClass = "com.example.MyPlugin"
-        apiVersion = "0.3.0"                 // PluginCore API you build against
+        apiVersion = "1.0.0"                 // PluginCore you build against; StarLight needs at least this version
         authors.add("me")
         description = "What it does"
+        category = "utility"                 // messenger, engine, library, utility, devtools or other (the default)
         // version = "1.0.0"                 // defaults to android.defaultConfig.versionName
         // usesNativeLibrary = true          // when the plugin ships .so files
         // assetRevision = 3                 // defaults to a hash of the asset files
@@ -93,12 +94,16 @@ To keep personal addresses out of the build script, pass `-Pstarlight.device=...
 `STARLIGHT_DEVICE` environment variable; both take precedence over the build script.
 
 ### What is validated
-The checks mirror StarLight's `PluginLoader`:
-- `starlight.json` is in `assets/` (`res/raw/` is deprecated), has no BOM, and starts with `{` and ends with `}`
-  with no trailing blank lines (the host rejects anything else)
+The checks mirror how StarLight's PluginCore reads and loads plugins:
+- `starlight.json` is in `assets/` (`res/raw/` is deprecated) and has no BOM. With an `api_version` of 0.3.x it must
+  also start with `{` and end with `}` with no trailing blank lines, because StarLight with PluginCore 0.3.x loads
+  such plugins too and rejects anything else
 - required keys `id`, `name`, `main_class`, `version`, `api_version`, `authors`, `description` and their types
-- versions use `major.minor.patch[.build]`; `api_version` should match the host's PluginCore major.minor (currently 0.3)
-- the id is not reserved (`global`, `starlight`, `system`, `core`)
+- versions use `major.minor.patch[.build]`
+- `api_version` is within the range StarLight loads: from 0.3.0 up to the host's PluginCore version
+  (1.0.0 is the newest this plugin knows, so newer values only produce a warning)
+- the id only uses `A-Z`, `a-z`, `0-9`, `.`, `_` and `-`, and is not reserved (`global`, `starlight`, `system`, `core`)
+- `category` is a string; unknown categories are reported, because StarLight lists those plugins under `other`
 - dependency strings: `id`, `id@1.2.3`, `id@*?`. An optional dependency without a version (`id?`) is reported,
   because the host keeps the `?` in the id and never matches it
 - unknown keys are reported; `depend` is an error, because the host ignores it and drops the dependencies
@@ -112,6 +117,15 @@ Notes:
 - If you enable minification, keep the main class: `-keep class com.example.MyPlugin { public <init>(); }`.
   With `excludeHostKotlinLibraries`, R8 may also need `-dontwarn kotlin.**`.
 - StarLight does not verify signatures, so unsigned release builds work.
+- When several `.slp` files have the same id, StarLight loads the one with the highest `version`. The deploy task
+  writes `<id>.slp`, so delete older copies saved under other names.
+
+### Migrating from 0.2.0
+- An id with characters other than `A-Z`, `a-z`, `0-9`, `.`, `_` and `-` is now an error (it was a warning),
+  because StarLight with PluginCore 1.0.0 refuses to load such plugins.
+- `api_version` is checked against the range StarLight loads (0.3.0 up to the host's PluginCore) instead of the
+  host's major.minor, so `1.0.0` no longer produces a warning.
+- Optionally add `category` to the `manifest { }` block.
 
 ### Migrating from 0.1.0
 - The extension is now `starlight { }` instead of `starlightPlugin { }`.
