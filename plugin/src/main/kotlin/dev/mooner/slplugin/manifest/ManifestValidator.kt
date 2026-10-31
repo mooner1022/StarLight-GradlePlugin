@@ -15,37 +15,38 @@ internal class ManifestValidation(
 
 /**
  * Checks a `starlight.json` against the rules the StarLight host applies when it loads a plugin
- * (`PluginLoader`, `PluginInfo`, `PluginDependency`, `Version` in PluginCore), plus mistakes the host
- * silently ignores, such as misspelled keys.
+ * (`PluginInstaller`, `PluginLoader`, `PluginInfo`, `PluginDependency`, `ApiCompatibility`, `Version` in PluginCore),
+ * plus mistakes the host silently ignores, such as misspelled keys.
  */
 internal object ManifestValidator {
 
-    /** PluginCore API line of the current StarLight host. Plugins with another major.minor are not loaded. */
-    val KNOWN_HOST_API = StarlightVersion(0, 3, 2)
+    /** Newest PluginCore known to this plugin (`Info.PLUGINCORE_VERSION`). Hosts refuse plugins with a newer api_version. */
+    val KNOWN_HOST_API = StarlightVersion(1, 0, 0)
+
+    /** Oldest api_version the host still loads (`Info.MIN_PLUGIN_API_VERSION`). */
+    val MIN_HOST_API = StarlightVersion(0, 3, 0)
 
     val RESERVED_IDS = setOf("global", "starlight", "system", "core")
 
+    /** `PluginCategory` ids. The host matches them ignoring case and surrounding whitespace, and falls back to `other`. */
+    val CATEGORIES = listOf("messenger", "engine", "library", "utility", "devtools", "other")
+
     private val KNOWN_KEYS = setOf(
         "id", "name", "main_class", "custom_classloader", "version", "assetRevision",
-        "api_version", "dependency", "uses_native_lib", "authors", "description",
+        "api_version", "dependency", "uses_native_lib", "authors", "description", "category",
     )
+
+    private val ID = Regex("[A-Za-z0-9._-]+")
 
     private val CLASS_NAME = Regex("""[\p{L}_$][\p{L}\p{N}_$]*(\.[\p{L}_$][\p{L}\p{N}_$]*)*""")
 
     /** Validates the raw file content, including the formatting quirks of the host's reader. */
     fun validateText(text: String): ManifestValidation {
         val issues = mutableListOf<ManifestIssue>()
-        val hostView = joinLinesLikeHost(text)
-        when {
-            hostView.startsWith('﻿') ->
-                issues += error("starlight.json starts with a byte order mark (BOM), which StarLight rejects. Save it as UTF-8 without BOM.")
-            !hostView.startsWith("{") ->
-                issues += error("starlight.json must start with '{' (StarLight rejects leading whitespace or other characters).")
-        }
-        if (!hostView.endsWith("}"))
-            issues += error("starlight.json must end with '}' (StarLight rejects trailing blank lines, whitespace or other characters).")
+        if (text.startsWith('\uFEFF'))
+            issues += error("starlight.json starts with a byte order mark (BOM), which StarLight rejects. Save it as UTF-8 without BOM.")
 
-        val content = text.removePrefix("﻿")
+        val content = text.removePrefix("\uFEFF")
         val parsed = try {
             ManifestJson.parse(content)
         } catch (strict: Exception) {
@@ -64,8 +65,26 @@ internal object ManifestValidator {
         }
         @Suppress("UNCHECKED_CAST")
         val manifest = parsed as Map<String, Any?>
+        if (isLoadedByLegacyHost(manifest["api_version"])) {
+            val hostView = joinLinesLikeHost(content)
+            if (!hostView.startsWith("{"))
+                issues += error("starlight.json must start with '{'. $LEGACY_HOST_NOTE leading whitespace or other characters.")
+            if (!hostView.endsWith("}"))
+                issues += error("starlight.json must end with '}'. $LEGACY_HOST_NOTE trailing blank lines, whitespace or other characters.")
+        }
         issues += validate(manifest)
         return ManifestValidation(issues, manifest)
+    }
+
+    private const val LEGACY_HOST_NOTE = "StarLight with PluginCore 0.3.x, which also loads plugins with api_version 0.3.x, rejects"
+
+    /**
+     * Hosts with PluginCore 0.3.x read the manifest line by line and require it to start with '{' and end with '}'.
+     * They only load plugins whose api_version is 0.3.x; newer hosts parse the file as it is.
+     */
+    private fun isLoadedByLegacyHost(apiVersion: Any?): Boolean {
+        val version = (apiVersion as? String)?.let(StarlightVersion::parseOrNull) ?: return true
+        return version.major == 0 && version.minor == 3
     }
 
     fun validate(manifest: Map<String, Any?>): List<ManifestIssue> {
@@ -90,8 +109,8 @@ internal object ManifestValidator {
                 id.isBlank() -> issues += error("'id' must not be blank.")
                 id.trim().lowercase() in RESERVED_IDS ->
                     issues += error("'id' \"$id\" is reserved by StarLight (${RESERVED_IDS.joinToString()}).")
-                id.any { it.isWhitespace() || it == '@' || it == '?' } ->
-                    issues += warning("'id' \"$id\" contains whitespace, '@' or '?', so other plugins cannot depend on it.")
+                !ID.matches(id) ->
+                    issues += error("'id' \"$id\" may only contain the letters A-Z and a-z, digits, '.', '_' and '-'. StarLight refuses other ids.")
             }
         }
         requiredString("name")?.let { if (it.isBlank()) issues += error("'name' must not be blank.") }
@@ -99,14 +118,29 @@ internal object ManifestValidator {
         requiredString("version")?.let { checkVersion("version", it, issues) }
         requiredString("api_version")?.let { value ->
             val apiVersion = checkVersion("api_version", value, issues)
-            if (apiVersion != null && !apiVersion.isCompatibleWith(KNOWN_HOST_API))
-                issues += warning(
-                    "'api_version' $value targets PluginCore ${apiVersion.major}.${apiVersion.minor}.x, but the current " +
-                        "StarLight host provides ${KNOWN_HOST_API.major}.${KNOWN_HOST_API.minor}.x. The host only loads " +
-                        "plugins whose api_version has the same major.minor."
-                )
+            when {
+                apiVersion == null -> {}
+                apiVersion > KNOWN_HOST_API ->
+                    issues += warning(
+                        "'api_version' $value is newer than PluginCore $KNOWN_HOST_API, the newest StarLight host known to " +
+                            "this Gradle plugin. StarLight refuses plugins whose api_version is newer than its PluginCore."
+                    )
+                apiVersion < MIN_HOST_API ->
+                    issues += warning(
+                        "'api_version' $value is older than $MIN_HOST_API, the oldest PluginCore API StarLight still loads. " +
+                            "Build against a newer PluginCore and raise api_version."
+                    )
+            }
         }
         requiredString("description")
+
+        if ("category" in manifest) {
+            val category = manifest["category"]
+            if (category !is String)
+                issues += error("'category' must be a string, but was ${describe(category)}.")
+            else if (CATEGORIES.none { it.equals(category.trim(), ignoreCase = true) })
+                issues += warning("'category' \"$category\" is not a StarLight category (${CATEGORIES.joinToString()}), so StarLight lists the plugin under 'other'.")
+        }
 
         if ("authors" !in manifest) {
             issues += error("Missing required key 'authors'.")
@@ -193,7 +227,7 @@ internal object ManifestValidator {
             issues += error("'$key' \"$value\" is not a valid fully qualified class name.")
     }
 
-    /** The host reads the manifest line by line and joins the lines with '\n' (PluginCore `InputStream.readString`). */
+    /** PluginCore 0.3.x reads the manifest line by line and joins the lines with '\n' (`InputStream.readString`). */
     internal fun joinLinesLikeHost(text: String): String {
         val lines = text.lines()
         val trimmed =

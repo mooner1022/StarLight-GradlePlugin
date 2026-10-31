@@ -1,3 +1,4 @@
+import org.gradle.plugin.compatibility.compatibility
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 
 plugins {
@@ -19,6 +20,12 @@ gradlePlugin {
             description = "Builds, validates and deploys StarLight plugins (.slp)"
             tags = listOf("starlight", "android")
             implementationClass = "dev.mooner.slplugin.StarLightPlugin"
+            compatibility {
+                features {
+                    // Covered by the functional tests, which store and reuse the configuration cache.
+                    configurationCache = true
+                }
+            }
         }
     }
 }

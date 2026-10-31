@@ -48,6 +48,9 @@ abstract class GenerateStarlightManifest : DefaultTask() {
     @get:Input @get:Optional
     abstract val pluginDescription: Property<String>
 
+    @get:Input @get:Optional
+    abstract val category: Property<String>
+
     @get:Input
     abstract val dependencies: ListProperty<String>
 
@@ -108,6 +111,7 @@ abstract class GenerateStarlightManifest : DefaultTask() {
         manifest["uses_native_lib"] = usesNativeLibrary.get()
         manifest["authors"] = authors.get()
         manifest["description"] = pluginDescription.get()
+        category.orNull?.let { manifest["category"] = it }
 
         ManifestReporting.reportOrThrow(logger, "starlight { manifest { ... } }", ManifestValidator.validate(manifest))
 

@@ -23,6 +23,7 @@ class StarLightPluginFunctionalTest {
             apiVersion = "0.3.0"
             authors.add("tester")
             description = "Functional test fixture"
+            category = "library"
             dependency("other", optional = true)
         }
     """.trimIndent()
@@ -48,6 +49,7 @@ class StarLightPluginFunctionalTest {
         assertEquals("fixture", manifest["id"])
         assertEquals("1.2.3", manifest["version"], "version should default to versionName")
         assertEquals(listOf("other@*?"), manifest["dependency"])
+        assertEquals("library", manifest["category"])
         assertNotEquals(0, manifest["assetRevision"], "assetRevision should be derived from the assets")
 
         val outputs = JsonSlurper().parse(fixture.slp("debug/starlight-outputs.json")) as Map<*, *>

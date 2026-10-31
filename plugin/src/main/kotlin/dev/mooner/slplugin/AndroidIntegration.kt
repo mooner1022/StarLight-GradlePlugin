@@ -121,6 +121,7 @@ internal object AndroidIntegration {
                     task.apiVersion.set(manifest.apiVersion)
                     task.authors.set(manifest.authors)
                     task.pluginDescription.set(manifest.description)
+                    task.category.set(manifest.category)
                     task.dependencies.set(manifest.dependencies)
                     task.usesNativeLibrary.set(manifest.usesNativeLibrary)
                     task.assetRevision.set(manifest.assetRevision)

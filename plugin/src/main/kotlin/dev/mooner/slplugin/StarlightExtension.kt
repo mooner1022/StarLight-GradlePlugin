@@ -73,12 +73,21 @@ abstract class ManifestSpec {
     /** Defaults to `android.defaultConfig.versionName`. Must be `major.minor.patch[.build]`. */
     abstract val version: Property<String>
 
-    /** PluginCore API version the plugin is built against, e.g. `0.3.0`. */
+    /**
+     * PluginCore API version the plugin is built against, e.g. `1.0.0`. StarLight loads the plugin when its
+     * PluginCore is at least this version.
+     */
     abstract val apiVersion: Property<String>
 
     abstract val authors: ListProperty<String>
 
     abstract val description: Property<String>
+
+    /**
+     * Where StarLight lists the plugin: `messenger`, `engine`, `library`, `utility`, `devtools` or `other`.
+     * StarLight uses `other` when this is not set.
+     */
+    abstract val category: Property<String>
 
     /** Raw StarLight dependency strings (`id`, `id@1.0.0`, `id@*?`). Prefer [dependency]. */
     abstract val dependencies: ListProperty<String>

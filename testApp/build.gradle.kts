@@ -33,6 +33,7 @@ starlight {
         apiVersion = "0.3.2"
         authors.add("mooner")
         description = "Sample plugin built with io.github.mooner1022.slplugin"
+        category = "devtools"
     }
     deploy {
         // Or pass -Pstarlight.device=<serial or ip:port>, or set STARLIGHT_DEVICE.
