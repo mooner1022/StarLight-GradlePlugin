@@ -44,14 +44,41 @@ abstract class AdbTask : DefaultTask() {
         return adb
     }
 
+    // Launches an explicit component rather than using monkey, which aborts on devices without physical keys
+    // (redroid, some emulators) and picks a random activity when there are several launcher activities.
     internal fun restartStarlight(adb: Adb) {
         val packageName = appPackage.get()
+        // Resolved before force-stopping, so a missing app fails without touching the device.
+        val launchers = adb.shell(
+            "cmd", "package", "query-activities", "--brief",
+            "-a", ACTION_MAIN, "-c", CATEGORY_LAUNCHER, packageName,
+        )
+        val activity = pickLauncherActivity(launchers, packageName)
+            ?: throw GradleException("Could not launch $packageName. Is StarLight installed on the device?\n${launchers.trim()}")
         adb.shell("am", "force-stop", packageName)
-        val output = adb.shell("monkey", "-p", packageName, "-c", "android.intent.category.LAUNCHER", "1")
-        if ("No activities found" in output || "aborted" in output)
-            throw GradleException("Could not launch $packageName. Is StarLight installed on the device?\n${output.trim()}")
+        // adb shell joins its arguments into one shell command line, so quote the component (nested classes contain '$').
+        val output = adb.shell("am", "start", "-a", ACTION_MAIN, "-c", CATEGORY_LAUNCHER, "-n", "'$activity'")
+        // am start exits with 0 even when it fails.
+        if (output.lineSequence().any { it.trim().startsWith("Error") })
+            throw GradleException("Could not launch $activity:\n${output.trim()}")
         logger.lifecycle("Restarted $packageName")
     }
+
+    private companion object {
+        const val ACTION_MAIN = "android.intent.action.MAIN"
+        const val CATEGORY_LAUNCHER = "android.intent.category.LAUNCHER"
+    }
+}
+
+/**
+ * Picks the activity to launch from `cmd package query-activities --brief` output, whose component lines look like
+ * `dev.mooner.starlight/.ui.splash.SplashActivity`. Debug builds can have more than one launcher activity
+ * (LeakCanary adds its own), so the app's own activities are preferred over ones from libraries.
+ */
+internal fun pickLauncherActivity(queryOutput: String, packageName: String): String? {
+    val components = queryOutput.lineSequence().map(String::trim).filter { it.startsWith("$packageName/") }.toList()
+    return components.firstOrNull { it.startsWith("$packageName/.") || it.startsWith("$packageName/$packageName.") }
+        ?: components.firstOrNull()
 }
 
 /** Pushes the variant's `.slp` into StarLight's plugin folder, choosing the split that matches the device ABI. */
