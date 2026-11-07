@@ -44,6 +44,7 @@ kotlin {
 
 dependencies {
     compileOnly(libs.android.gradle.api)
+    implementation(libs.asm)
 }
 
 val functionalTestRepo = layout.buildDirectory.dir("functional-test-repo")

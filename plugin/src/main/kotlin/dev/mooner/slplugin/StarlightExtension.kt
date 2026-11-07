@@ -74,8 +74,13 @@ abstract class ManifestSpec {
     abstract val version: Property<String>
 
     /**
-     * PluginCore API version the plugin is built against, e.g. `1.0.0`. StarLight loads the plugin when its
-     * PluginCore is at least this version.
+     * The lowest PluginCore the plugin needs, e.g. `1.0.0`. StarLight loads the plugin when its PluginCore is at least
+     * this version.
+     *
+     * Leave it unset to have it worked out from the code: the newest version among the PluginCore API the code uses, or
+     * the oldest release the PluginCore records when it uses nothing newer. This needs PluginCore 1.1.0 or later, whose
+     * AAR records when its API was added. When it is set, building fails if the code uses API newer than it.
+     * `target_api_version`, the PluginCore the plugin is built against, is written either way.
      */
     abstract val apiVersion: Property<String>
 

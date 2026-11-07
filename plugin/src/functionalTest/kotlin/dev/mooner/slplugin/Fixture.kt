@@ -67,6 +67,7 @@ class Fixture(name: String, private val target: AgpTarget) {
             """.trimIndent(),
         )
         stubPluginCore.copyTo(file("libs/plugincore-stub.jar"), overwrite = true)
+        recordingPluginCore.copyTo(file("libs/plugincore-recording.jar"), overwrite = true)
     }
 
     fun file(path: String, content: String? = null): File =
@@ -186,8 +187,31 @@ class Fixture(name: String, private val target: AgpTarget) {
         }
 
         /** Stand-in for PluginCore with just `StarlightPlugin`, compiled on the fly. */
-        private val stubPluginCore: File by lazy {
-            val root = File("build/functional-test-stub").absoluteFile.apply { deleteRecursively() }
+        private val stubPluginCore: File by lazy { buildStub("functional-test-stub", apiFile = null) }
+
+        /**
+         * Stand-in for PluginCore 1.1.0 that records when its API was added, as PluginCore's AAR does:
+         * `StarlightPlugin.addedLater()` is 1.1.0, the rest is from the 1.0.1 baseline.
+         */
+        private val recordingPluginCore: File by lazy {
+            buildStub(
+                "functional-test-recording-stub",
+                apiFile = """
+                    {
+                      "format": 1,
+                      "version": "1.1.0",
+                      "baseline": "1.0.1",
+                      "classes": {},
+                      "members": {
+                        "dev/mooner/starlight/plugincore/plugin/StarlightPlugin#addedLater()V": "1.1.0"
+                      }
+                    }
+                """.trimIndent(),
+            )
+        }
+
+        private fun buildStub(name: String, apiFile: String?): File {
+            val root = File("build/$name").absoluteFile.apply { deleteRecursively() }
             val source = File(root, "src/dev/mooner/starlight/plugincore/plugin/StarlightPlugin.java").apply {
                 parentFile.mkdirs()
                 writeText(
@@ -196,6 +220,9 @@ class Fixture(name: String, private val target: AgpTarget) {
 
                     public abstract class StarlightPlugin {
                         public StarlightPlugin() {
+                        }
+
+                        public void addedLater() {
                         }
                     }
                     """.trimIndent()
@@ -206,11 +233,16 @@ class Fixture(name: String, private val target: AgpTarget) {
                 .run(null, null, null, "--release", "8", "-d", classes.path, source.path)
             check(result == 0) { "Could not compile the PluginCore stub" }
 
-            File(root, "plugincore-stub.jar").also { jar ->
+            return File(root, "plugincore-stub.jar").also { jar ->
                 JarOutputStream(jar.outputStream()).use { output ->
                     classes.walkTopDown().filter(File::isFile).forEach { file ->
                         output.putNextEntry(JarEntry(file.relativeTo(classes).invariantSeparatorsPath))
                         file.inputStream().use { it.copyTo(output) }
+                        output.closeEntry()
+                    }
+                    if (apiFile != null) {
+                        output.putNextEntry(JarEntry("starlight/plugincore-api.json"))
+                        output.write(apiFile.toByteArray())
                         output.closeEntry()
                     }
                 }

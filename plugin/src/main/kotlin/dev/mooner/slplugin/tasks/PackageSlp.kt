@@ -2,9 +2,13 @@ package dev.mooner.slplugin.tasks
 
 import com.android.build.api.variant.BuiltArtifactsLoader
 import com.android.build.api.variant.FilterConfiguration
+import dev.mooner.slplugin.api.ApiUsageReport
+import dev.mooner.slplugin.api.ApiVersionCheck
 import dev.mooner.slplugin.apk.PluginApk
 import dev.mooner.slplugin.apk.PluginApkChecker
 import dev.mooner.slplugin.manifest.ManifestIssue
+import dev.mooner.slplugin.manifest.ManifestValidator
+import dev.mooner.slplugin.manifest.StarlightVersion
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
@@ -44,6 +48,11 @@ abstract class PackageSlp : DefaultTask() {
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val generatedManifest: RegularFileProperty
 
+    /** What [ScanStarlightApiUsage] found the code needs from PluginCore, checked against the packaged api_version. */
+    @get:InputFile @get:Optional
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val apiUsageReport: RegularFileProperty
+
     @get:OutputDirectory
     abstract val outputDirectory: DirectoryProperty
 
@@ -53,13 +62,22 @@ abstract class PackageSlp : DefaultTask() {
             ?.takeIf { it.elements.isNotEmpty() }
             ?: throw GradleException("No APK found in ${apkDirectory.get().asFile}.")
         val expectedManifest = generatedManifest.orNull?.asFile?.readText(Charsets.UTF_8)
+        val usage = apiUsageReport.orNull?.asFile?.takeIf { it.isFile }?.let(ApiUsageReport::readFrom) ?: ApiUsageReport.UNKNOWN
+        val knownHostApi = usage.pluginCore ?: ManifestValidator.KNOWN_HOST_API
 
         val issues = linkedSetOf<ManifestIssue>()
         val packaged = artifacts.elements.map { element ->
             val apk = PluginApk.read(File(element.outputFile))
-            val report = PluginApkChecker.check(apk, expectedManifest)
+            val report = PluginApkChecker.check(apk, expectedManifest, knownHostApi)
             issues += report.issues
             Triple(apk, report.manifest, element.filters.firstOrNull { it.filterType == FilterConfiguration.FilterType.ABI }?.identifier)
+        }
+        // Hand-written manifests too: the packaged one is what StarLight reads.
+        val apiVersion = (packaged.firstNotNullOfOrNull { it.second }?.get("api_version") as? String)
+            ?.let(StarlightVersion::parseOrNull)
+        if (apiVersion != null && usage.isKnown) {
+            issues += ApiVersionCheck.issues(apiVersion, usage)
+            ApiVersionCheck.note(apiVersion, usage)?.let { logger.lifecycle("i: [StarLight] $it") }
         }
         ManifestReporting.reportOrThrow(logger, "the ${variantName.get()} APK", issues)
 

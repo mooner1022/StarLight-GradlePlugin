@@ -3,6 +3,7 @@ package dev.mooner.slplugin.apk
 import dev.mooner.slplugin.manifest.ManifestIssue
 import dev.mooner.slplugin.manifest.ManifestValidator
 import dev.mooner.slplugin.manifest.Severity
+import dev.mooner.slplugin.manifest.StarlightVersion
 import java.io.File
 import java.util.zip.ZipFile
 
@@ -69,7 +70,11 @@ internal object PluginApkChecker {
         "Lcom/google/android/material/" to "material",
     )
 
-    fun check(apk: PluginApk, expectedManifest: String?): PluginApkReport {
+    fun check(
+        apk: PluginApk,
+        expectedManifest: String?,
+        knownHostApi: StarlightVersion = ManifestValidator.KNOWN_HOST_API,
+    ): PluginApkReport {
         val issues = mutableListOf<ManifestIssue>()
         val text = apk.manifestText
             ?: return PluginApkReport(
@@ -86,7 +91,7 @@ internal object PluginApkChecker {
                     "Remove hand-written starlight.json files from your asset and res/raw folders."
             )
 
-        val validation = ManifestValidator.validateText(text)
+        val validation = ManifestValidator.validateText(text, knownHostApi)
         issues += validation.issues
         val manifest = validation.manifest ?: return PluginApkReport(issues, null)
 

@@ -1,5 +1,5 @@
 [versions]
-slplugin = "0.3.1"
+slplugin = "0.4.0"
 # Same as the StarLight app (E:\AndroidStudioProjects\StarLight\gradle\libs.versions.toml).
 # PluginCore is compiled with this Kotlin, so plugins need a compiler that can read its metadata.
 kotlin = "2.4.20"
@@ -14,9 +14,12 @@ agp-api = "8.0.2"
 # AGP used by the sample (testApp) and by the "latest" functional tests.
 agp-latest = "9.4.1"
 junit = "5.11.4"
+# Reads plugin classes to find the PluginCore API they use. AGP ships ASM 9 as well; Gradle takes the newer one.
+asm = "9.8"
 
 [libraries]
 android-gradle-api = { module = "com.android.tools.build:gradle-api", version.ref = "agp-api" }
+asm = { module = "org.ow2.asm:asm", version.ref = "asm" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

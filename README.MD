@@ -8,6 +8,7 @@ become build errors instead.
 
 - Packages every build variant as `<id>-<variant>[-<abi>].slp`
 - Generates `starlight.json` from the build script, or validates a hand-written one
+- Works out `api_version` from the PluginCore API the code uses, and fails the build when a declared one is too low
 - Verifies that `main_class` is in the APK, extends `StarlightPlugin` and has a public no-arg constructor
 - Adds the PluginCore / ConfigDSL SDK as `compileOnly` and flags libraries the host already provides
 - Pushes the plugin with adb (USB or wireless debugging), restarts StarLight and streams its logcat
@@ -26,14 +27,14 @@ Kotlin DSL:
 ```kotlin
 plugins {
     id("com.android.application")
-    id("io.github.mooner1022.slplugin") version "0.3.1"
+    id("io.github.mooner1022.slplugin") version "0.4.0"
 }
 ```
 Groovy DSL:
 ```groovy
 plugins {
     id 'com.android.application'
-    id 'io.github.mooner1022.slplugin' version '0.3.1'
+    id 'io.github.mooner1022.slplugin' version '0.4.0'
 }
 ```
 
@@ -55,7 +56,7 @@ starlight {
         id = "my_plugin"
         name = "My Plugin"
         mainClass = "com.example.MyPlugin"
-        apiVersion = "1.0.0"                 // PluginCore you build against; StarLight needs at least this version
+        // apiVersion = "1.0.0"              // lowest PluginCore the plugin needs; worked out from the code when unset
         authors.add("me")
         description = "What it does"
         category = "utility"                 // messenger, engine, library, utility, devtools or other (the default)
@@ -83,6 +84,7 @@ starlight {
 | `restartStarlight` | Force-stops and relaunches StarLight |
 | `starlightLogcat` | Streams StarLight's logcat (Ctrl+C to stop) |
 | `generate<Variant>StarlightManifest` | Generates `starlight.json` (only with a `manifest { }` block) |
+| `scan<Variant>StarlightApiUsage` | Finds the PluginCore API the code uses, for `api_version` (runs as part of the above) |
 | `verifyStarlightSdk` | Checks that the SDK files exist (runs before every build) |
 
 Typical loop: `gradlew deployDebugSlp -Pstarlight.restartApp=true`, then `gradlew starlightLogcat`.
@@ -93,6 +95,36 @@ and use the address shown under *Wireless debugging*; the plugin runs `adb conne
 To keep personal addresses out of the build script, pass `-Pstarlight.device=...` or set the
 `STARLIGHT_DEVICE` environment variable; both take precedence over the build script.
 
+### api_version and older StarLight versions
+StarLight loads a plugin only when its PluginCore is at least the plugin's `api_version`, and a plugin that calls API its
+host doesn't have fails when that code runs. So `api_version` should be the lowest PluginCore the code actually needs,
+not the one it is built against. With PluginCore 1.1.0 or later, whose AAR records which version added each class and
+member (`starlight/plugincore-api.json`), this plugin works it out:
+
+- It reads the module's compiled classes and finds the PluginCore API they use, also through subclasses of your own.
+  Overriding a newer PluginCore method doesn't count: an older host just doesn't call it.
+- Without `apiVersion`, the generated manifest gets the newest version among that API, or, when the code uses nothing
+  newer, the oldest release the PluginCore records (1.0.1).
+- With `apiVersion`, or a hand-written manifest, the build fails when the code uses API newer than it, naming each use.
+- The manifest also gets `target_api_version`, the PluginCore you build against. StarLight doesn't read it yet.
+
+To use newer API and still load on older hosts, check the version first and mark the code that runs only on newer hosts
+with `@RequiresPluginCore`. What it uses, up to that version, is left out, with the lambdas and local classes inside it:
+```kotlin
+override fun onEnable() {
+    if (Info.PLUGINCORE_VERSION >= Version(1, 1, 0))   // Info and Version exist in every PluginCore
+        createProject()
+}
+
+@RequiresPluginCore("1.1.0")
+private fun createProject() = Session.projectManager.newProject(events = events) {
+    name = "my-bot"; mainScript = "my-bot.js"; languageId = "js_neon"
+    allowedEventIds = setOf("my_plugin.*")             // added in PluginCore 1.1.0
+}
+```
+Only the plugin module's own classes are read: mark code in other modules, or calls made through reflection, yourself.
+With an older PluginCore AAR nothing can be worked out, and `apiVersion` stays required.
+
 ### What is validated
 The checks mirror how StarLight's PluginCore reads and loads plugins:
 - `starlight.json` is in `assets/` (`res/raw/` is deprecated) and has no BOM. With an `api_version` of 0.3.x it must
@@ -100,8 +132,10 @@ The checks mirror how StarLight's PluginCore reads and loads plugins:
   such plugins too and rejects anything else
 - required keys `id`, `name`, `main_class`, `version`, `api_version`, `authors`, `description` and their types
 - versions use `major.minor.patch[.build]`
-- `api_version` is within the range StarLight loads: from 0.3.0 up to the host's PluginCore version
-  (1.0.0 is the newest this plugin knows, so newer values only produce a warning)
+- `api_version` is within the range StarLight loads: from 0.3.0 up to the PluginCore you build against
+  (1.1.0 when its AAR doesn't say; newer values only produce a warning)
+- `api_version` is not lower than the PluginCore API the code uses (see above); `target_api_version` is a version
+  no older than `api_version`
 - the id only uses `A-Z`, `a-z`, `0-9`, `.`, `_` and `-`, and is not reserved (`global`, `starlight`, `system`, `core`)
 - `category` is a string; unknown categories are reported, because StarLight lists those plugins under `other`
 - dependency strings: `id`, `id@1.2.3`, `id@*?`. An optional dependency without a version (`id?`) is reported,
@@ -119,6 +153,12 @@ Notes:
 - StarLight does not verify signatures, so unsigned release builds work.
 - When several `.slp` files have the same id, StarLight loads the one with the highest `version`. The deploy task
   writes `<id>.slp`, so delete older copies saved under other names.
+
+### Migrating from 0.3.x
+- With PluginCore 1.1.0 or later, the build fails when the code uses PluginCore API newer than `api_version`. Raise it,
+  or mark the code as above. `apiVersion` may now be left out of the `manifest { }` block.
+- Generated manifests get `target_api_version`; it is also accepted in hand-written ones.
+- `api_version` 1.1.0 no longer produces a warning.
 
 ### Migrating from 0.2.0
 - An id with characters other than `A-Z`, `a-z`, `0-9`, `.`, `_` and `-` is now an error (it was a warning),

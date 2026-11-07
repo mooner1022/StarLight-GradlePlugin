@@ -62,6 +62,59 @@ class StarLightPluginFunctionalTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("dev.mooner.slplugin.AgpTarget#all")
+    fun `works out api_version from the PluginCore API the code uses`(target: AgpTarget) {
+        Fixture.assumeAndroidSdk(target)
+        val fixture = Fixture("api-version-${target.agp}", target)
+        fun block(apiVersion: String?) = """
+            sdk {
+                pluginCore = file("libs/plugincore-recording.jar")
+            }
+            manifest {
+                id = "fixture"
+                name = "Fixture"
+                mainClass = "dev.test.fixture.FixturePlugin"
+                ${apiVersion?.let { "apiVersion = \"$it\"" }.orEmpty()}
+                authors.add("tester")
+                description = "Functional test fixture"
+            }
+        """.trimIndent()
+
+        @Suppress("UNCHECKED_CAST")
+        fun manifest() = JsonSlurper().parseText(
+            Fixture.zipEntries(fixture.slp("debug/fixture-debug.slp")).getValue("assets/starlight.json").toString(Charsets.UTF_8)
+        ) as Map<String, Any?>
+
+        // Nothing newer than the baseline: the oldest release the PluginCore records.
+        fixture.starlightBlock = block(apiVersion = null)
+        fixture.runner("assembleDebugSlp").build()
+        assertEquals("1.0.1", manifest()["api_version"])
+        assertEquals("1.1.0", manifest()["target_api_version"])
+
+        // A call to a member PluginCore 1.1.0 added.
+        fixture.file(
+            "src/main/java/dev/test/fixture/UsesNewApi.java",
+            """
+            package dev.test.fixture;
+
+            public class UsesNewApi {
+                void run(FixturePlugin plugin) {
+                    plugin.addedLater();
+                }
+            }
+            """.trimIndent(),
+        )
+        fixture.runner("assembleDebugSlp").build()
+        assertEquals("1.1.0", manifest()["api_version"])
+
+        // Declared lower than that: the build names the use.
+        fixture.starlightBlock = block(apiVersion = "1.0.1")
+        val result = fixture.runner("assembleDebugSlp").buildAndFail()
+        assertTrue("'api_version' 1.0.1 is lower than PluginCore 1.1.0" in result.output, result.output)
+        assertTrue("dev.test.fixture.UsesNewApi.run (UsesNewApi.java:5): StarlightPlugin.addedLater()" in result.output, result.output)
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("dev.mooner.slplugin.AgpTarget#all")
     fun `rejects a hand-written manifest the host would misread`(target: AgpTarget) {
         Fixture.assumeAndroidSdk(target)
         val fixture = Fixture("handwritten-${target.agp}", target)
