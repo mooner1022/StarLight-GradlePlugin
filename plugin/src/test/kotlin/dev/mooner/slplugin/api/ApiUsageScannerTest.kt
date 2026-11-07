@@ -84,6 +84,12 @@ class ApiUsageScannerTest {
     }
 
     @Test
+    fun `counts a method that marked code only references, which other code calls`() {
+        assertEquals("ProjectInfoBuilder.setAllowedEventIds(Set)", usedIn("MethodRefHelper.helper").single().api)
+        assertEquals(emptyList<ApiUsage>(), usedIn("MethodRefHelper.guarded"))
+    }
+
+    @Test
     fun `still counts what marked code uses beyond its version`() {
         val usage = usedIn("GuardedTooLow.run").single()
         assertEquals("ProjectInfoBuilder.setFuture(String)", usage.api)
@@ -273,6 +279,16 @@ class ApiUsageScannerTest {
                         lambda.run();
                         new Object() { void call() { b.setAllowedEventIds(null); } }.call();
                     }
+                }
+            """,
+            "test/plugin/MethodRefHelper.java" to """
+                package test.plugin;
+                $IMPORTS
+                public class MethodRefHelper {
+                    @RequiresPluginCore(version = "1.1.0")
+                    Runnable guarded() { return this::helper; }
+                    void helper() { new ProjectInfoBuilder().setAllowedEventIds(null); }
+                    void direct() { helper(); }
                 }
             """,
             "test/plugin/GuardedTooLow.java" to """

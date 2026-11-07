@@ -43,12 +43,19 @@ internal class ApiUsageScanner(private val core: PluginCoreApi) {
         val line: Int,
     )
 
-    private class Method(val name: String, val descriptor: String) {
+    private class Method(val name: String, val descriptor: String, access: Int) {
         val key get() = name + descriptor
         var requires: StarlightVersion? = null
         val references = mutableListOf<Reference>()
-        /** The methods of the same class that its lambdas run (`invokedynamic` targets), keyed as [key]. */
+        /** The methods of the same class its `invokedynamic`s point at, keyed as [key]: lambda bodies or method references. */
         val lambdaBodies = mutableListOf<String>()
+
+        /**
+         * Whether this is a lambda's body, which runs only through the lambda: Java's are synthetic (`lambda$run$0`),
+         * Kotlin's are named `run$lambda$0`. A method a method reference points at (`this::helper`) is neither, and may
+         * also be called directly.
+         */
+        val isLambdaBody = access and Opcodes.ACC_SYNTHETIC != 0 || "\$lambda\$" in name
     }
 
     private class ScannedClass(val shape: ClassShape) {
@@ -68,7 +75,8 @@ internal class ApiUsageScanner(private val core: PluginCoreApi) {
         for (scanned in classes.values)
             for (method in scanned.methods.values)
                 for (body in method.lambdaBodies)
-                    lambdaCreator["${scanned.name}#$body"] = method.key
+                    if (scanned.methods[body]?.isLambdaBody == true)
+                        lambdaCreator["${scanned.name}#$body"] = method.key
 
         fun requirementOf(className: String, methodKey: String?, depth: Int = 0): StarlightVersion? {
             if (depth > MAX_NESTING)
@@ -151,7 +159,7 @@ internal class ApiUsageScanner(private val core: PluginCoreApi) {
                 requirementVisitor(descriptor) { scanned.requires = it }
 
             override fun visitMethod(access: Int, name: String, descriptor: String, signature: String?, exceptions: Array<out String>?): MethodVisitor {
-                val method = Method(name, descriptor)
+                val method = Method(name, descriptor, access)
                 scanned.methods[method.key] = method
                 return ReferenceCollector(scanned.name, method)
             }
