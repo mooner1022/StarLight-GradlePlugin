@@ -1,5 +1,5 @@
 [versions]
-slplugin = "0.3.0"
+slplugin = "0.3.1"
 # Same as the StarLight app (E:\AndroidStudioProjects\StarLight\gradle\libs.versions.toml).
 # PluginCore is compiled with this Kotlin, so plugins need a compiler that can read its metadata.
 kotlin = "2.4.20"

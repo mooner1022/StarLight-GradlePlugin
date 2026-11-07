@@ -26,14 +26,14 @@ Kotlin DSL:
 ```kotlin
 plugins {
     id("com.android.application")
-    id("io.github.mooner1022.slplugin") version "0.3.0"
+    id("io.github.mooner1022.slplugin") version "0.3.1"
 }
 ```
 Groovy DSL:
 ```groovy
 plugins {
     id 'com.android.application'
-    id 'io.github.mooner1022.slplugin' version '0.3.0'
+    id 'io.github.mooner1022.slplugin' version '0.3.1'
 }
 ```
 
