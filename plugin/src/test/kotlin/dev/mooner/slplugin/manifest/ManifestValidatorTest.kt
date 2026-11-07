@@ -58,7 +58,7 @@ class ManifestValidatorTest {
 
     @Test
     fun `accepts api versions within the range StarLight loads`() {
-        listOf("0.3.0", "0.3.2", "0.4.1", "1.0.0", "1.0.0.240203").forEach { apiVersion ->
+        listOf("0.3.0", "0.3.2", "0.4.1", "1.0.0", "1.0.0.240203", "1.1.0").forEach { apiVersion ->
             assertEquals(emptyList<ManifestIssue>(), validate("api_version" to apiVersion), apiVersion)
         }
     }
@@ -69,9 +69,24 @@ class ManifestValidatorTest {
         assertEquals(emptyList<String>(), outdated.errors())
         assertTrue(outdated.warnings().single().contains("oldest PluginCore API"))
 
-        val tooNew = validate("api_version" to "1.1.0")
+        val tooNew = validate("api_version" to "1.2.0")
         assertEquals(emptyList<String>(), tooNew.errors())
         assertTrue(tooNew.warnings().single().contains("newest StarLight host"))
+    }
+
+    @Test
+    fun `measures api_version against the PluginCore the plugin is built against`() {
+        val manifest = valid + ("api_version" to "1.2.0")
+        assertEquals(emptyList<ManifestIssue>(), ManifestValidator.validate(manifest, StarlightVersion(1, 2, 0)))
+        assertTrue(ManifestValidator.validate(manifest, StarlightVersion(1, 1, 0)).warnings().single().contains("1.1.0"))
+    }
+
+    @Test
+    fun `checks target_api_version`() {
+        assertEquals(emptyList<ManifestIssue>(), validate("api_version" to "1.0.1", "target_api_version" to "1.1.0"))
+        assertTrue(validate("target_api_version" to 110).errors().single().contains("must be a string"))
+        assertTrue(validate("target_api_version" to "1.1").errors().single().contains("not a valid StarLight version"))
+        assertTrue(validate("api_version" to "1.1.0", "target_api_version" to "1.0.1").warnings().single().contains("older than 'api_version'"))
     }
 
     @Test

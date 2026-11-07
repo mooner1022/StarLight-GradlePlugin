@@ -1,13 +1,16 @@
 package dev.mooner.slplugin
 
+import com.android.build.api.artifact.ScopedArtifact
 import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.android.build.api.variant.ApplicationVariant
+import com.android.build.api.variant.ScopedArtifacts
 import dev.mooner.slplugin.tasks.AdbTask
 import dev.mooner.slplugin.tasks.DeploySlp
 import dev.mooner.slplugin.tasks.GenerateStarlightManifest
 import dev.mooner.slplugin.tasks.PackageSlp
 import dev.mooner.slplugin.tasks.RestartStarlight
+import dev.mooner.slplugin.tasks.ScanStarlightApiUsage
 import dev.mooner.slplugin.tasks.StarlightLogcat
 import dev.mooner.slplugin.tasks.VerifyStarlightSdk
 import org.gradle.api.Action
@@ -106,6 +109,18 @@ internal object AndroidIntegration {
             }
         }
 
+        // The PluginCore API the module's code uses, from its compiled classes: the api_version it needs.
+        val scanApiUsage = project.tasks.register("scan${taskSuffix}StarlightApiUsage", ScanStarlightApiUsage::class.java) { task ->
+            task.group = GROUP
+            task.description = "Finds the PluginCore API the ${variant.name} variant's code uses, which sets its api_version."
+            task.pluginCore.set(extension.sdk.pluginCore)
+            task.report.set(project.layout.buildDirectory.file("intermediates/starlight/${variant.name}/api-usage.json"))
+        }
+        variant.artifacts.forScope(ScopedArtifacts.Scope.PROJECT)
+            .use(scanApiUsage)
+            .toGet(ScopedArtifact.CLASSES, ScanStarlightApiUsage::classJars, ScanStarlightApiUsage::classDirectories)
+        val apiUsageReport: Provider<RegularFile> = scanApiUsage.flatMap { it.report }
+
         val generatedManifest: Provider<RegularFile>? =
             if (extension.generatesManifest()) {
                 val manifest = extension.manifest
@@ -126,6 +141,7 @@ internal object AndroidIntegration {
                     task.usesNativeLibrary.set(manifest.usesNativeLibrary)
                     task.assetRevision.set(manifest.assetRevision)
                     task.assetSources.from(assetSourceDirectories(project, variant))
+                    task.apiUsageReport.set(apiUsageReport)
                 }
                 variant.sources.assets?.addGeneratedSourceDirectory(generate, GenerateStarlightManifest::outputDirectory)
                 generate.flatMap { it.outputDirectory.file(GenerateStarlightManifest.MANIFEST_FILE) }
@@ -139,6 +155,7 @@ internal object AndroidIntegration {
             task.variantName.set(variant.name)
             task.outputDirectory.set(project.layout.buildDirectory.dir("outputs/starlight/${variant.name}"))
             generatedManifest?.let { task.generatedManifest.set(it) }
+            task.apiUsageReport.set(apiUsageReport)
         }
 
         project.tasks.register("deploy${taskSuffix}Slp", DeploySlp::class.java) { task ->

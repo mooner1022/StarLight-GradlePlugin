@@ -20,8 +20,11 @@ internal class ManifestValidation(
  */
 internal object ManifestValidator {
 
-    /** Newest PluginCore known to this plugin (`Info.PLUGINCORE_VERSION`). Hosts refuse plugins with a newer api_version. */
-    val KNOWN_HOST_API = StarlightVersion(1, 0, 0)
+    /**
+     * Newest PluginCore known to this plugin (`Info.PLUGINCORE_VERSION`), when the PluginCore a plugin is built against
+     * doesn't say its version. Hosts refuse plugins with a newer api_version.
+     */
+    val KNOWN_HOST_API = StarlightVersion(1, 1, 0)
 
     /** Oldest api_version the host still loads (`Info.MIN_PLUGIN_API_VERSION`). */
     val MIN_HOST_API = StarlightVersion(0, 3, 0)
@@ -33,15 +36,18 @@ internal object ManifestValidator {
 
     private val KNOWN_KEYS = setOf(
         "id", "name", "main_class", "custom_classloader", "version", "assetRevision",
-        "api_version", "dependency", "uses_native_lib", "authors", "description", "category",
+        "api_version", "target_api_version", "dependency", "uses_native_lib", "authors", "description", "category",
     )
 
     private val ID = Regex("[A-Za-z0-9._-]+")
 
     private val CLASS_NAME = Regex("""[\p{L}_$][\p{L}\p{N}_$]*(\.[\p{L}_$][\p{L}\p{N}_$]*)*""")
 
-    /** Validates the raw file content, including the formatting quirks of the host's reader. */
-    fun validateText(text: String): ManifestValidation {
+    /**
+     * Validates the raw file content, including the formatting quirks of the host's reader. [knownHostApi] is the newest
+     * PluginCore an api_version may name without a warning: the one the plugin is built against, when known.
+     */
+    fun validateText(text: String, knownHostApi: StarlightVersion = KNOWN_HOST_API): ManifestValidation {
         val issues = mutableListOf<ManifestIssue>()
         if (text.startsWith('\uFEFF'))
             issues += error("starlight.json starts with a byte order mark (BOM), which StarLight rejects. Save it as UTF-8 without BOM.")
@@ -72,7 +78,7 @@ internal object ManifestValidator {
             if (!hostView.endsWith("}"))
                 issues += error("starlight.json must end with '}'. $LEGACY_HOST_NOTE trailing blank lines, whitespace or other characters.")
         }
-        issues += validate(manifest)
+        issues += validate(manifest, knownHostApi)
         return ManifestValidation(issues, manifest)
     }
 
@@ -87,7 +93,7 @@ internal object ManifestValidator {
         return version.major == 0 && version.minor == 3
     }
 
-    fun validate(manifest: Map<String, Any?>): List<ManifestIssue> {
+    fun validate(manifest: Map<String, Any?>, knownHostApi: StarlightVersion = KNOWN_HOST_API): List<ManifestIssue> {
         val issues = mutableListOf<ManifestIssue>()
 
         fun requiredString(key: String): String? {
@@ -116,19 +122,33 @@ internal object ManifestValidator {
         requiredString("name")?.let { if (it.isBlank()) issues += error("'name' must not be blank.") }
         requiredString("main_class")?.let { checkClassName("main_class", it, issues) }
         requiredString("version")?.let { checkVersion("version", it, issues) }
-        requiredString("api_version")?.let { value ->
-            val apiVersion = checkVersion("api_version", value, issues)
+        val apiVersion = requiredString("api_version")?.let { value ->
+            val parsed = checkVersion("api_version", value, issues)
             when {
-                apiVersion == null -> {}
-                apiVersion > KNOWN_HOST_API ->
+                parsed == null -> {}
+                parsed > knownHostApi ->
                     issues += warning(
-                        "'api_version' $value is newer than PluginCore $KNOWN_HOST_API, the newest StarLight host known to " +
-                            "this Gradle plugin. StarLight refuses plugins whose api_version is newer than its PluginCore."
+                        "'api_version' $value is newer than PluginCore $knownHostApi, the newest StarLight host known to " +
+                            "this build. StarLight refuses plugins whose api_version is newer than its PluginCore."
                     )
-                apiVersion < MIN_HOST_API ->
+                parsed < MIN_HOST_API ->
                     issues += warning(
                         "'api_version' $value is older than $MIN_HOST_API, the oldest PluginCore API StarLight still loads. " +
                             "Build against a newer PluginCore and raise api_version."
+                    )
+            }
+            parsed
+        }
+        // The PluginCore the plugin is built against; hosts don't read it yet.
+        if ("target_api_version" in manifest) {
+            val value = manifest["target_api_version"]
+            if (value !is String)
+                issues += error("'target_api_version' must be a string, but was ${describe(value)}.")
+            else checkVersion("target_api_version", value, issues)?.let { target ->
+                if (apiVersion != null && target < apiVersion)
+                    issues += warning(
+                        "'target_api_version' $value is older than 'api_version' $apiVersion. It names the PluginCore the " +
+                            "plugin is built against, which has everything the plugin needs."
                     )
             }
         }

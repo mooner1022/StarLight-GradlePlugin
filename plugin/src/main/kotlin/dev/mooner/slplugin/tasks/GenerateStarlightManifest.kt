@@ -1,16 +1,19 @@
 package dev.mooner.slplugin.tasks
 
+import dev.mooner.slplugin.api.ApiUsageReport
 import dev.mooner.slplugin.manifest.ManifestJson
 import dev.mooner.slplugin.manifest.ManifestValidator
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.CacheableTask
 import org.gradle.api.tasks.IgnoreEmptyDirectories
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
@@ -67,11 +70,20 @@ abstract class GenerateStarlightManifest : DefaultTask() {
     @get:IgnoreEmptyDirectories
     abstract val assetSources: ConfigurableFileCollection
 
+    /**
+     * What [ScanStarlightApiUsage] found the code needs from PluginCore: `api_version` when it isn't set, and
+     * `target_api_version`.
+     */
+    @get:InputFile @get:Optional
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val apiUsageReport: RegularFileProperty
+
     @get:OutputDirectory
     abstract val outputDirectory: DirectoryProperty
 
     @TaskAction
     fun generate() {
+        val usage = apiUsageReport.orNull?.asFile?.takeIf { it.isFile }?.let(ApiUsageReport::readFrom) ?: ApiUsageReport.UNKNOWN
         val assetFiles = assetSources.files
             .filter(File::isDirectory)
             .flatMap { root -> root.walkTopDown().filter(File::isFile).map { it.relativeTo(root).invariantSeparatorsPath to it } }
@@ -83,19 +95,23 @@ abstract class GenerateStarlightManifest : DefaultTask() {
             )
         }
 
+        // Unset, api_version is the lowest PluginCore the code runs on: what it uses, or the oldest release recorded.
+        val resolvedApiVersion = apiVersion.orNull ?: (usage.required ?: usage.baseline)?.toString()
         val required = linkedMapOf(
-            "id" to pluginId,
-            "name" to pluginName,
-            "mainClass" to mainClass,
-            "version" to pluginVersion,
-            "apiVersion" to apiVersion,
-            "description" to pluginDescription,
+            "id" to pluginId.isPresent,
+            "name" to pluginName.isPresent,
+            "mainClass" to mainClass.isPresent,
+            "version" to pluginVersion.isPresent,
+            "apiVersion" to (resolvedApiVersion != null),
+            "description" to pluginDescription.isPresent,
         )
-        val missing = required.filterValues { !it.isPresent }.keys
+        val missing = required.filterValues { !it }.keys
         if (missing.isNotEmpty())
             throw GradleException(
                 "starlight { manifest { ... } } is missing: ${missing.joinToString()}." +
-                    if ("version" in missing) " (version defaults to android.defaultConfig.versionName)" else ""
+                    (if ("version" in missing) " (version defaults to android.defaultConfig.versionName)" else "") +
+                    (if ("apiVersion" in missing) " (apiVersion is worked out from the code only with PluginCore 1.1.0 or " +
+                        "later, which records when its API was added)" else "")
             )
 
         val manifest = linkedMapOf<String, Any?>(
@@ -106,14 +122,19 @@ abstract class GenerateStarlightManifest : DefaultTask() {
         customClassLoader.orNull?.let { manifest["custom_classloader"] = it }
         manifest["version"] = pluginVersion.get()
         manifest["assetRevision"] = assetRevision.orNull ?: computeAssetRevision(assetFiles)
-        manifest["api_version"] = apiVersion.get()
+        manifest["api_version"] = resolvedApiVersion
+        usage.pluginCore?.let { manifest["target_api_version"] = it.toString() }
         manifest["dependency"] = dependencies.get()
         manifest["uses_native_lib"] = usesNativeLibrary.get()
         manifest["authors"] = authors.get()
         manifest["description"] = pluginDescription.get()
         category.orNull?.let { manifest["category"] = it }
 
-        ManifestReporting.reportOrThrow(logger, "starlight { manifest { ... } }", ManifestValidator.validate(manifest))
+        ManifestReporting.reportOrThrow(
+            logger,
+            "starlight { manifest { ... } }",
+            ManifestValidator.validate(manifest, usage.pluginCore ?: ManifestValidator.KNOWN_HOST_API),
+        )
 
         val output = outputDirectory.get().asFile
         output.mkdirs()
