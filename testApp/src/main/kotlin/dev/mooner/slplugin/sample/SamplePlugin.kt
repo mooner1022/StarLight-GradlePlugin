@@ -6,6 +6,7 @@ import dev.mooner.starlight.plugincore.plugin.StarlightPlugin
 class SamplePlugin : StarlightPlugin() {
 
     override fun onEnable() {
+        addApi(GreeterApi())
         Log.i(TAG, "Sample plugin enabled")
     }
 

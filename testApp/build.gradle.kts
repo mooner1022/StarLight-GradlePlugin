@@ -1,6 +1,8 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.slplugin)
+    // Optional: with KSP, the plugin's KDoc becomes the docs StarLight AI reads (starlight/agent/sample.api.json).
+    alias(libs.plugins.ksp)
 }
 
 android {
