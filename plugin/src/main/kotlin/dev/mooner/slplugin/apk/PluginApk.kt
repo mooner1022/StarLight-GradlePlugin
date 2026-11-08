@@ -17,12 +17,20 @@ internal class PluginApk private constructor(
     val hasLegacyManifest: Boolean,
     val nativeLibraries: List<String>,
     val dexFiles: List<DexFile>,
+    /** The docs StarLight AI reads (`<id>.api.json` under `starlight/agent/`), by entry name. */
+    val agentDocs: Map<String, String> = emptyMap(),
+    /** The plugin's guides for StarLight AI (`.md` files under `assets/agent/guides/`), by entry name. */
+    val guides: Map<String, String> = emptyMap(),
 ) {
     companion object {
         const val ASSETS_MANIFEST = "assets/starlight.json"
         const val LEGACY_MANIFEST = "res/raw/starlight.json"
 
+        const val AGENT_DOCS_DIR = "starlight/agent/"
+        const val GUIDES_DIR = "assets/agent/guides/"
+
         private val DEX_ENTRY = Regex("""classes\d*\.dex""")
+        private val AGENT_DOCS_ENTRY = Regex("""starlight/agent/[^/]+\.api\.json""")
 
         fun read(file: File): PluginApk = ZipFile(file).use { zip ->
             val assets = zip.getEntry(ASSETS_MANIFEST)
@@ -38,6 +46,10 @@ internal class PluginApk private constructor(
                 nativeLibraries = entries.map { it.name }.filter { it.startsWith("lib/") && it.endsWith(".so") },
                 dexFiles = entries.filter { DEX_ENTRY.matches(it.name) }
                     .map { entry -> DexFile(zip.getInputStream(entry).use { it.readBytes() }) },
+                agentDocs = entries.filter { AGENT_DOCS_ENTRY.matches(it.name) }
+                    .associate { entry -> entry.name to zip.getInputStream(entry).use { it.readBytes().toString(Charsets.UTF_8) } },
+                guides = entries.filter { it.name.startsWith(GUIDES_DIR) && it.name.endsWith(".md") }
+                    .associate { entry -> entry.name to zip.getInputStream(entry).use { it.readBytes().toString(Charsets.UTF_8) } },
             )
         }
     }

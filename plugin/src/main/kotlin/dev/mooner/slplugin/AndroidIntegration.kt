@@ -5,6 +5,7 @@ import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.android.build.api.variant.ApplicationVariant
 import com.android.build.api.variant.ScopedArtifacts
+import dev.mooner.slplugin.docs.AgentDocsIntegration
 import dev.mooner.slplugin.tasks.AdbTask
 import dev.mooner.slplugin.tasks.DeploySlp
 import dev.mooner.slplugin.tasks.GenerateStarlightManifest
@@ -55,6 +56,8 @@ internal object AndroidIntegration {
             task.configDsl.set(sdk.configDsl)
         }
         project.tasks.matching { it.name == "preBuild" }.configureEach { it.dependsOn(verifySdk) }
+
+        AgentDocsIntegration.configure(project, AgentDocsIntegration.pluginId(project, extension.manifest.id))
 
         val adb = components.sdkComponents.adb
         val providers = project.providers
@@ -156,6 +159,7 @@ internal object AndroidIntegration {
             task.outputDirectory.set(project.layout.buildDirectory.dir("outputs/starlight/${variant.name}"))
             generatedManifest?.let { task.generatedManifest.set(it) }
             task.apiUsageReport.set(apiUsageReport)
+            task.agentDocsExpected.set(project.provider { project.pluginManager.hasPlugin(AgentDocsIntegration.KSP_PLUGIN) })
         }
 
         project.tasks.register("deploy${taskSuffix}Slp", DeploySlp::class.java) { task ->

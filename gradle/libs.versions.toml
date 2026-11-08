@@ -1,5 +1,5 @@
 [versions]
-slplugin = "0.4.0"
+slplugin = "0.5.0"
 # Same as the StarLight app (E:\AndroidStudioProjects\StarLight\gradle\libs.versions.toml).
 # PluginCore is compiled with this Kotlin, so plugins need a compiler that can read its metadata.
 kotlin = "2.4.20"
@@ -16,10 +16,16 @@ agp-latest = "9.4.1"
 junit = "5.11.4"
 # Reads plugin classes to find the PluginCore API they use. AGP ships ASM 9 as well; Gradle takes the newer one.
 asm = "9.8"
+# The agent docs processor (a copy of the StarLight app's :docs-processor) is compiled against these. KSP itself comes
+# from the plugin's build; the processor's JSON library is added to its ksp classpath (AgentDocsIntegration).
+ksp = "2.3.13"
+kotlinx-serialization = "1.11.0"
 
 [libraries]
 android-gradle-api = { module = "com.android.tools.build:gradle-api", version.ref = "agp-api" }
 asm = { module = "org.ow2.asm:asm", version.ref = "asm" }
+ksp-api = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "ksp" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
@@ -27,3 +33,4 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 android-application = { id = "com.android.application", version.ref = "agp-latest" }
 publish = { id = "com.gradle.plugin-publish", version = "2.2.1" }
 slplugin = { id = "io.github.mooner1022.slplugin", version.ref = "slplugin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

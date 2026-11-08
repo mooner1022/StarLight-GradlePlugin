@@ -142,6 +142,72 @@ class StarLightPluginFunctionalTest {
     }
 
     @Test
+    fun `writes the plugin's KDoc for StarLight AI when KSP is applied`() {
+        // KSP 2.3.13 refuses AGP before 8.12, so plugins on older AGP build without docs.
+        val target = AgpTarget.LATEST
+        Fixture.assumeAndroidSdk(target)
+        val fixture = Fixture("agent-docs", target)
+        // As in the sample: AGP's built-in Kotlin with the Kotlin of the StarLight app.
+        fixture.extraPlugins = """
+            id("org.jetbrains.kotlin.android") version "${System.getProperty("slplugin.kotlin")}" apply false
+            id("com.google.devtools.ksp") version "${System.getProperty("slplugin.ksp")}"
+        """.trimIndent()
+        fixture.starlightBlock = manifestBlock
+        fixture.file(
+            "src/main/kotlin/dev/test/fixture/Greeter.kt",
+            """
+            package dev.test.fixture
+
+            /** Greets people. */
+            class Greeter {
+                /**
+                 * A greeting for [name].
+                 *
+                 * @param name Who to greet.
+                 */
+                fun greet(name: String): String = "Hello, " + name
+            }
+            """.trimIndent(),
+        )
+        fixture.file("src/main/assets/agent/guides/greetings.md", "---\ntitle: Greetings\nsummary: How to greet.\n---\n\n## Use\n")
+        fixture.file("src/main/assets/agent/guides/notes.md", "# Notes without front matter\n")
+
+        fixture.runner("help").build()
+        val result = fixture.runner("assembleDebugSlp", "--configuration-cache").build()
+        assertEquals(TaskOutcome.SUCCESS, result.task(":assembleDebugSlp")?.outcome, result.output)
+
+        @Suppress("UNCHECKED_CAST")
+        fun docs(id: String) = JsonSlurper().parseText(
+            Fixture.zipEntries(fixture.slp("debug/$id-debug.slp")).getValue("starlight/agent/$id.api.json").toString(Charsets.UTF_8)
+        ) as Map<String, Any?>
+
+        val docs = docs("fixture")
+        assertEquals(1, docs["format"])
+        assertEquals("fixture", docs["module"])
+        val greeter = (docs["classes"] as Map<*, *>)["dev.test.fixture.Greeter"] as Map<*, *>
+        val greet = (greeter["members"] as Map<*, *>)["greet(Ljava/lang/String;)Ljava/lang/String;"] as Map<*, *>
+        assertEquals("A greeting for `name`.", (greet["doc"] as Map<*, *>)["summary"])
+        assertTrue("StarLight AI docs: " in result.output && "1 guide (fixture:greetings)" in result.output, result.output)
+        assertTrue("StarLight skips guide notes" in result.output, result.output)
+
+        val rerun = fixture.runner("assembleDebugSlp", "--configuration-cache").build()
+        assertTrue("Configuration cache entry reused" in rerun.output, rerun.output)
+
+        // A hand-written manifest names the docs too.
+        fixture.starlightBlock = """
+            sdk {
+                pluginCore = file("libs/plugincore-stub.jar")
+            }
+        """.trimIndent()
+        fixture.file(
+            "src/main/assets/starlight.json",
+            """{"id":"handwritten","name":"Hand","main_class":"dev.test.fixture.FixturePlugin","version":"1.0.0","api_version":"0.3.0","authors":["tester"],"description":"Hand-written"}""",
+        )
+        fixture.runner("assembleDebugSlp").build()
+        assertEquals("handwritten", docs("handwritten")["module"])
+    }
+
+    @Test
     fun `rejects a main class that does not extend StarlightPlugin`() {
         val target = AgpTarget.LATEST
         Fixture.assumeAndroidSdk(target)

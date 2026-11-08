@@ -42,9 +42,41 @@ kotlin {
     }
 }
 
+// The agent docs processor: a copy of the StarLight app's :docs-processor, which runs inside the consumer's KSP, never
+// in Gradle. It is packed into its own jar and shipped inside the plugin's, as dev/mooner/slplugin/docs/processor.jar,
+// because Gradle instruments the plugin's own jar for the configuration cache. See AgentDocsIntegration.
+val docsProcessor: SourceSet = sourceSets.create("docsProcessor")
+
 dependencies {
     compileOnly(libs.android.gradle.api)
     implementation(libs.asm)
+
+    // KSP provides its API and Kotlin's stdlib; AgentDocsIntegration adds the JSON library to the ksp classpath.
+    "docsProcessorCompileOnly"(libs.ksp.api)
+    "docsProcessorCompileOnly"(libs.kotlinx.serialization.json)
+    testImplementation(libs.ksp.api)
+    testImplementation(libs.kotlinx.serialization.json)
+}
+
+// The processor's tests, in the test source set, see its internals.
+kotlin.target.compilations.named("test") {
+    associateWith(kotlin.target.compilations.getByName("docsProcessor"))
+}
+
+val docsProcessorJar = tasks.register<Jar>("docsProcessorJar") {
+    from(docsProcessor.output)
+    archiveFileName = "processor.jar"
+    destinationDirectory = layout.buildDirectory.dir("docsProcessor")
+}
+
+tasks.processResources {
+    from(docsProcessorJar) { into("dev/mooner/slplugin/docs") }
+    // The JSON library added to the consumer's ksp classpath: the one the processor is compiled against.
+    val serialization = libs.kotlinx.serialization.json.get().toString()
+    inputs.property("kotlinxSerializationJson", serialization)
+    filesMatching("dev/mooner/slplugin/docs/processor.properties") {
+        expand("kotlinxSerializationJson" to serialization)
+    }
 }
 
 val functionalTestRepo = layout.buildDirectory.dir("functional-test-repo")
@@ -81,6 +113,7 @@ testing {
                     systemProperty("slplugin.host.compileSdk", libs.versions.compileSdk.get())
                     systemProperty("slplugin.host.buildTools", libs.versions.buildTools.get())
                     systemProperty("slplugin.kotlin", libs.versions.kotlin.get())
+                    systemProperty("slplugin.ksp", libs.versions.ksp.get())
                     systemProperty("slplugin.testKitDir", layout.projectDirectory.dir(".gradle/testkit").asFile.absolutePath)
                     shouldRunAfter(tasks.named("test"))
                 }

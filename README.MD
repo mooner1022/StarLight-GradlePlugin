@@ -10,6 +10,7 @@ become build errors instead.
 - Generates `starlight.json` from the build script, or validates a hand-written one
 - Works out `api_version` from the PluginCore API the code uses, and fails the build when a declared one is too low
 - Verifies that `main_class` is in the APK, extends `StarlightPlugin` and has a public no-arg constructor
+- With KSP, puts the plugin's KDoc into the package, so StarLight AI knows the plugin's script API
 - Adds the PluginCore / ConfigDSL SDK as `compileOnly` and flags libraries the host already provides
 - Pushes the plugin with adb (USB or wireless debugging), restarts StarLight and streams its logcat
 
@@ -27,14 +28,14 @@ Kotlin DSL:
 ```kotlin
 plugins {
     id("com.android.application")
-    id("io.github.mooner1022.slplugin") version "0.4.0"
+    id("io.github.mooner1022.slplugin") version "0.5.0"
 }
 ```
 Groovy DSL:
 ```groovy
 plugins {
     id 'com.android.application'
-    id 'io.github.mooner1022.slplugin' version '0.4.0'
+    id 'io.github.mooner1022.slplugin' version '0.5.0'
 }
 ```
 
@@ -85,6 +86,7 @@ starlight {
 | `starlightLogcat` | Streams StarLight's logcat (Ctrl+C to stop) |
 | `generate<Variant>StarlightManifest` | Generates `starlight.json` (only with a `manifest { }` block) |
 | `scan<Variant>StarlightApiUsage` | Finds the PluginCore API the code uses, for `api_version` (runs as part of the above) |
+| `extractStarlightDocsProcessor` | Extracts the docs processor for KSP (only with KSP applied, runs as part of the build) |
 | `verifyStarlightSdk` | Checks that the SDK files exist (runs before every build) |
 
 Typical loop: `gradlew deployDebugSlp -Pstarlight.restartApp=true`, then `gradlew starlightLogcat`.
@@ -125,6 +127,67 @@ private fun createProject() = Session.projectManager.newProject(events = events)
 Only the plugin module's own classes are read: mark code in other modules, or calls made through reflection, yourself.
 With an older PluginCore AAR nothing can be worked out, and `apiVersion` stays required.
 
+### Docs for StarLight AI
+StarLight AI, the app's assistant, writes scripts from what the plugins loaded on the device offer. It always sees a
+plugin's APIs and events from reflection: their names, members and types. With docs, it also sees what they do.
+These are the docs the StarLight app has for its own API, made the same way, and StarLight with PluginCore 1.1.0 or
+later reads them from the plugin's package.
+
+- **KDoc:** apply KSP, and this plugin runs StarLight's docs processor with it. The processor writes the KDoc and Kotlin
+  signatures of the module's public classes to `starlight/agent/<id>.api.json` in the APK:
+  ```kotlin
+  plugins {
+      id("com.android.application")
+      id("com.google.devtools.ksp") version "2.3.13"     // needs AGP 8.12 or newer
+      id("io.github.mooner1022.slplugin") version "0.5.0"
+  }
+  ```
+  KSP is left to your build, because each KSP release supports a range of AGP versions and this plugin supports
+  AGP 8.0 and later. Plugins without KSP build as before, without docs.
+- **Guides:** Markdown under `src/main/assets/agent/guides/`, for what belongs to no single class: setup, concepts,
+  limits. Each starts with front matter, and the agent opens one as `<plugin id>:<path without .md>`:
+  ```markdown
+  ---
+  title: Setup
+  summary: Connecting the bot: the token, intents and the setting that turns it on.
+  ---
+  ```
+
+Write the KDoc for someone writing a script. The first sentence is the summary the agent sees in lists; the paragraphs
+after it are shown in full descriptions. Document each parameter with `@param`, and the arguments a script's event
+function receives on the `ProjectEvent` class, one `@param` each. `@suppress` hides a public member from the agent.
+`@see guide:<id>` links one of the plugin's guides (`guide:starlight:<id>` one of the app's), and so does a Markdown
+link to `guide:<id>` in a guide.
+
+```kotlin
+/**
+ * Sends messages to Discord channels; a global in every project while the plugin is loaded.
+ *
+ * Messages over 2,000 characters are split. Fails while the bot is offline, see guide:setup.
+ *
+ * @see guide:setup
+ */
+class DiscordApi {
+    /**
+     * Sends [text] to a channel; whether Discord accepted it.
+     *
+     * @param channelId The channel's ID, from Discord's developer mode.
+     * @param text The message, in Discord's Markdown.
+     */
+    fun send(channelId: Long, text: String): Boolean = …
+}
+```
+
+The build reports what the package has, and the guides StarLight would skip:
+```
+i: [StarLight] StarLight AI docs: 3 classes in starlight/agent/my_plugin.api.json, 1 guide (my_plugin:setup)
+```
+Notes:
+- Docs are matched to classes and members by their names, so with minification keep the classes scripts use, as
+  scripts need them by name anyway.
+- The plugin also compiles with parameter names (`-parameters`, Kotlin's `-java-parameters`), which the agent shows for
+  members without docs.
+
 ### What is validated
 The checks mirror how StarLight's PluginCore reads and loads plugins:
 - `starlight.json` is in `assets/` (`res/raw/` is deprecated) and has no BOM. With an `api_version` of 0.3.x it must
@@ -141,6 +204,8 @@ The checks mirror how StarLight's PluginCore reads and loads plugins:
 - dependency strings: `id`, `id@1.2.3`, `id@*?`. An optional dependency without a version (`id?`) is reported,
   because the host keeps the `?` in the id and never matches it
 - unknown keys are reported; `depend` is an error, because the host ignores it and drops the dependencies
+- the docs for StarLight AI are where StarLight reads them (`starlight/agent/<id>.api.json`, format 1), and each guide
+  has front matter with a `title` and a `summary`
 - the main class exists in the APK, is a public non-abstract subclass of `StarlightPlugin` and has a public no-arg constructor
 - `uses_native_lib` matches whether the APK contains `.so` files
 - warnings for bundled copies of libraries the host provides (PluginCore, ConfigDSL, Kotlin, core AndroidX, Material)
@@ -153,6 +218,10 @@ Notes:
 - StarLight does not verify signatures, so unsigned release builds work.
 - When several `.slp` files have the same id, StarLight loads the one with the highest `version`. The deploy task
   writes `<id>.slp`, so delete older copies saved under other names.
+
+### Migrating from 0.4.x
+- Nothing to change. Apply KSP to add docs for StarLight AI (see above).
+- Java and Kotlin code is now compiled with parameter names.
 
 ### Migrating from 0.3.x
 - With PluginCore 1.1.0 or later, the build fails when the code uses PluginCore API newer than `api_version`. Raise it,
