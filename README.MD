@@ -28,14 +28,14 @@ Kotlin DSL:
 ```kotlin
 plugins {
     id("com.android.application")
-    id("io.github.mooner1022.slplugin") version "0.5.0"
+    id("io.github.mooner1022.slplugin") version "0.5.1"
 }
 ```
 Groovy DSL:
 ```groovy
 plugins {
     id 'com.android.application'
-    id 'io.github.mooner1022.slplugin' version '0.5.0'
+    id 'io.github.mooner1022.slplugin' version '0.5.1'
 }
 ```
 
@@ -108,7 +108,9 @@ member (`starlight/plugincore-api.json`), this plugin works it out:
 - Without `apiVersion`, the generated manifest gets the newest version among that API, or, when the code uses nothing
   newer, the oldest release the PluginCore records (1.0.1).
 - With `apiVersion`, or a hand-written manifest, the build fails when the code uses API newer than it, naming each use.
-- The manifest also gets `target_api_version`, the PluginCore you build against. StarLight doesn't read it yet.
+- `target_api_version` names the PluginCore you build against. A generated manifest gets it. A hand-written one must
+  have it, or the build fails and names the value to add. StarLight doesn't read it yet; it is for applying a behavior
+  change only to the plugins that target the version that made it.
 
 To use newer API and still load on older hosts, check the version first and mark the code that runs only on newer hosts
 with `@RequiresPluginCore`. What it uses, up to that version, is left out, with the lambdas and local classes inside it:
@@ -139,7 +141,7 @@ later reads them from the plugin's package.
   plugins {
       id("com.android.application")
       id("com.google.devtools.ksp") version "2.3.13"     // needs AGP 8.12 or newer
-      id("io.github.mooner1022.slplugin") version "0.5.0"
+      id("io.github.mooner1022.slplugin") version "0.5.1"
   }
   ```
   KSP is left to your build, because each KSP release supports a range of AGP versions and this plugin supports
@@ -198,7 +200,7 @@ The checks mirror how StarLight's PluginCore reads and loads plugins:
 - `api_version` is within the range StarLight loads: from 0.3.0 up to the PluginCore you build against
   (1.1.0 when its AAR doesn't say; newer values only produce a warning)
 - `api_version` is not lower than the PluginCore API the code uses (see above); `target_api_version` is a version
-  no older than `api_version`
+  no older than `api_version`, and a hand-written manifest has it when the PluginCore records its version (1.1.0 or later)
 - the id only uses `A-Z`, `a-z`, `0-9`, `.`, `_` and `-`, and is not reserved (`global`, `starlight`, `system`, `core`)
 - `category` is a string; unknown categories are reported, because StarLight lists those plugins under `other`
 - dependency strings: `id`, `id@1.2.3`, `id@*?`. An optional dependency without a version (`id?`) is reported,
@@ -218,6 +220,11 @@ Notes:
 - StarLight does not verify signatures, so unsigned release builds work.
 - When several `.slp` files have the same id, StarLight loads the one with the highest `version`. The deploy task
   writes `<id>.slp`, so delete older copies saved under other names.
+
+### Migrating from 0.5.0
+- With PluginCore 1.1.0 or later, a hand-written `starlight.json` must have `target_api_version`, the PluginCore you build
+  against, or the build fails: add `"target_api_version": "1.1.0"`, or the version the error names. Generated manifests
+  already have it.
 
 ### Migrating from 0.4.x
 - Nothing to change. Apply KSP to add docs for StarLight AI (see above).
