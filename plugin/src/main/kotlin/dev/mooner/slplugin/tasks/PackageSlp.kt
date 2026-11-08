@@ -6,6 +6,7 @@ import dev.mooner.slplugin.api.ApiUsageReport
 import dev.mooner.slplugin.api.ApiVersionCheck
 import dev.mooner.slplugin.apk.PluginApk
 import dev.mooner.slplugin.apk.PluginApkChecker
+import dev.mooner.slplugin.docs.AgentDocsChecker
 import dev.mooner.slplugin.manifest.ManifestIssue
 import dev.mooner.slplugin.manifest.ManifestValidator
 import dev.mooner.slplugin.manifest.StarlightVersion
@@ -53,8 +54,16 @@ abstract class PackageSlp : DefaultTask() {
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val apiUsageReport: RegularFileProperty
 
+    /** Whether KSP runs the agent docs processor, so the APK should have the plugin's docs. */
+    @get:Input
+    abstract val agentDocsExpected: Property<Boolean>
+
     @get:OutputDirectory
     abstract val outputDirectory: DirectoryProperty
+
+    init {
+        agentDocsExpected.convention(false)
+    }
 
     @TaskAction
     fun packageSlp() {
@@ -79,7 +88,11 @@ abstract class PackageSlp : DefaultTask() {
             issues += ApiVersionCheck.issues(apiVersion, usage)
             ApiVersionCheck.note(apiVersion, usage)?.let { logger.lifecycle("i: [StarLight] $it") }
         }
+        val docs = (packaged.firstNotNullOfOrNull { it.second }?.get("id") as? String)
+            ?.let { id -> AgentDocsChecker.check(packaged.first().first, id, agentDocsExpected.get()) }
+        docs?.let { issues += it.issues }
         ManifestReporting.reportOrThrow(logger, "the ${variantName.get()} APK", issues)
+        docs?.summary?.let { logger.lifecycle("i: [StarLight] $it") }
 
         val output = outputDirectory.get().asFile
         output.deleteRecursively()

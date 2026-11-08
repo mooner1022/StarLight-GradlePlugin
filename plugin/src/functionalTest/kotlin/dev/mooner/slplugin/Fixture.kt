@@ -45,6 +45,8 @@ class Fixture(name: String, private val target: AgpTarget) {
     var starlightBlock = ""
     var dependenciesBlock = ""
     var applyAndroid = true
+    /** More entries for the plugins block. */
+    var extraPlugins = ""
 
     init {
         file("src/main/AndroidManifest.xml", """<manifest xmlns:android="http://schemas.android.com/apk/res/android" />""")
@@ -129,6 +131,7 @@ class Fixture(name: String, private val target: AgpTarget) {
             |plugins {
             |    $androidPlugin
             |    id("io.github.mooner1022.slplugin") version "${System.getProperty("slplugin.version")}"
+            |    $extraPlugins
             |}
             |
             |$androidBlock
