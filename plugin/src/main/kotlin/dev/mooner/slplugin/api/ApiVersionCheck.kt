@@ -8,6 +8,7 @@ import dev.mooner.slplugin.manifest.StarlightVersion
 internal object ApiVersionCheck {
 
     private const val LISTED = 10
+    private const val TARGET = "target_api_version"
 
     /** An error when [apiVersion] is lower than what [report] found the code needs; older hosts would fail at run time. */
     fun issues(apiVersion: StarlightVersion, report: ApiUsageReport): List<ManifestIssue> {
@@ -22,6 +23,22 @@ internal object ApiVersionCheck {
                 "    StarLight with an older PluginCore would load the plugin and fail when this code runs. Raise api_version " +
                 "to $required, or call this code only after checking Info.PLUGINCORE_VERSION, from code marked " +
                 "@RequiresPluginCore(\"$required\")."
+        ))
+    }
+
+    /**
+     * An error when [manifest] has no `target_api_version` although the PluginCore the plugin is built against is known
+     * ([ApiUsageReport.pluginCore], from PluginCore 1.1.0 on). Generated manifests always have it, so this is about
+     * hand-written ones. Without a known PluginCore there is nothing to require or to suggest.
+     */
+    fun targetIssues(manifest: Map<String, Any?>, report: ApiUsageReport): List<ManifestIssue> {
+        val pluginCore = report.pluginCore ?: return emptyList()
+        if (TARGET in manifest)
+            return emptyList()
+        return listOf(ManifestIssue(Severity.ERROR,
+            "starlight.json has no '$TARGET'. Add \"$TARGET\": \"$pluginCore\", the PluginCore the plugin is built " +
+                "against, or generate the manifest with starlight { manifest { ... } }, which writes it. StarLight will " +
+                "use it to apply a behavior change only to the plugins that target the version that made it."
         ))
     }
 

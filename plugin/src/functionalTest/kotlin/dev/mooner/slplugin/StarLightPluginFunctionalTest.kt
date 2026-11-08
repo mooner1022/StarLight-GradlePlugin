@@ -142,6 +142,37 @@ class StarLightPluginFunctionalTest {
     }
 
     @Test
+    fun `requires target_api_version in a hand-written manifest`() {
+        val target = AgpTarget.HOST
+        Fixture.assumeAndroidSdk(target)
+        val fixture = Fixture("target-api-version", target)
+        // A PluginCore that records its version (1.1.0), as from 1.1.0 on.
+        fixture.starlightBlock = """sdk { pluginCore = file("libs/plugincore-recording.jar") }"""
+        fun manifest(extra: String) = fixture.file(
+            "src/main/assets/starlight.json",
+            """
+            {
+              "id": "fixture",
+              "name": "Fixture",
+              "main_class": "dev.test.fixture.FixturePlugin",
+              "version": "1.0.0",
+              "api_version": "1.0.1",$extra
+              "authors": ["tester"],
+              "description": "Functional test fixture"
+            }
+            """.trimIndent(),
+        )
+
+        manifest("")
+        val missing = fixture.runner("assembleDebugSlp").buildAndFail()
+        assertTrue("starlight.json has no 'target_api_version'. Add \"target_api_version\": \"1.1.0\"" in missing.output, missing.output)
+
+        manifest("\n  \"target_api_version\": \"1.1.0\",")
+        val result = fixture.runner("assembleDebugSlp").build()
+        assertEquals(TaskOutcome.SUCCESS, result.task(":assembleDebugSlp")?.outcome, result.output)
+    }
+
+    @Test
     fun `writes the plugin's KDoc for StarLight AI when KSP is applied`() {
         // KSP 2.3.13 refuses AGP before 8.12, so plugins on older AGP build without docs.
         val target = AgpTarget.LATEST

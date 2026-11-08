@@ -82,8 +82,10 @@ abstract class PackageSlp : DefaultTask() {
             Triple(apk, report.manifest, element.filters.firstOrNull { it.filterType == FilterConfiguration.FilterType.ABI }?.identifier)
         }
         // Hand-written manifests too: the packaged one is what StarLight reads.
-        val apiVersion = (packaged.firstNotNullOfOrNull { it.second }?.get("api_version") as? String)
+        val packagedManifest = packaged.firstNotNullOfOrNull { it.second }
+        val apiVersion = (packagedManifest?.get("api_version") as? String)
             ?.let(StarlightVersion::parseOrNull)
+        packagedManifest?.let { issues += ApiVersionCheck.targetIssues(it, usage) }
         if (apiVersion != null && usage.isKnown) {
             issues += ApiVersionCheck.issues(apiVersion, usage)
             ApiVersionCheck.note(apiVersion, usage)?.let { logger.lifecycle("i: [StarLight] $it") }

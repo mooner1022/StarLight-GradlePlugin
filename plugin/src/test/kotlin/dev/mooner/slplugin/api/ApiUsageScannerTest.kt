@@ -146,6 +146,18 @@ class ApiUsageScannerTest {
     }
 
     @Test
+    fun `requires target_api_version when the PluginCore built against is known`() {
+        val report = ApiUsageReport(StarlightVersion(1, 1, 0), StarlightVersion(1, 0, 1), emptyList())
+        val missing = ApiVersionCheck.targetIssues(mapOf("api_version" to "1.0.1"), report).single()
+        assertEquals(Severity.ERROR, missing.severity)
+        assertTrue(missing.message.contains("Add \"target_api_version\": \"1.1.0\""), missing.message)
+
+        assertEquals(emptyList<Any>(), ApiVersionCheck.targetIssues(mapOf("target_api_version" to "1.1.0"), report))
+        // With a PluginCore that records nothing, there is no version to require.
+        assertEquals(emptyList<Any>(), ApiVersionCheck.targetIssues(emptyMap(), ApiUsageReport.UNKNOWN))
+    }
+
+    @Test
     fun `writes and reads the report`() {
         val file = temp.toFile().resolve("report/api-usage.json")
         ApiUsageReport(v120, StarlightVersion(1, 0, 1), usages).writeTo(file)
